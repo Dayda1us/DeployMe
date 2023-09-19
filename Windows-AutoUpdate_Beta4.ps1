@@ -23,9 +23,11 @@ REVISIONS:
 3. Changed the execution policy on Step 4 of the script from "Restricted" to "Undefined", since it is the original setting for the built-in Administrator account.
 4. Made minor revisions on output messages.
 5. Added Get-ExecutionPolicy -List on the beginning of the execution policy script.
+6. Removed "Stage X:" messages on Step 3 UPDATES.
 
 BUGFIXES:
 1. Fixed a bug on the beginning of execution policy if statement. $Execution_Policy will now focus on the "Process" profile rather than the "CurrentUser."
+2. Move the $Reboot_Status to the top of each update script to ensure the if statement is working.
 
 
 #>
@@ -33,7 +35,9 @@ BUGFIXES:
 # This script must be started with elevated user rights.
 #Requires -RunAsAdministrator
 
-Write-Output "STEP 1: MODIFYING SETTINGS"
+$newline = Write-Output "`n"
+
+Write-Output "STEP 1: MODIFYING SETTINGS `n"
 
 # Setting the execution policy
 Write-Output "Setting the execution policy to Bypass."
@@ -42,17 +46,13 @@ $Execution_Policy = Get-ExecutionPolicy -Scope Process
 if ($Execution_Policy -contains "Bypass") {
     Write-Output "Execution Policy is already set to Bypass."
     Get-ExecutionPolicy -List
-    Start-Sleep -seconds 3
-    Clear-Host
 } else {
     Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force
     Write-Output "Execution Policy set to Bypass."
     Get-ExecutionPolicy -List
-    Start-Sleep -seconds 3
-    Clear-Host
 }
 
-Write-Output "STEP 1: MODIFYING SETTINGS"
+$newline
 
 # Checks if NuGet is installed on the computer.
 Write-Output "Checking if NuGet is installed on your computer."
@@ -62,22 +62,22 @@ if ($nuget -eq $true) {
     Write-Output "NuGet is already installed! Importing NuGet..."
     start-sleep -seconds 3
     Import-PackageProvider -name Nuget
+    $newline
     Write-Output "Nuget Imported!"
     start-sleep -Seconds 3
-    Clear-Host
 } else {
     Write-Output "Installing NuGet..."
     start-sleep -Seconds 3
     Install-PackageProvider -name NuGet -Force -ForceBootstrap
+    $newline
     Write-Output "Installed NuGet. Importing NuGet..."
     start-sleep -Seconds 3
     Import-PackageProvider -name Nuget
     Write-Output "Nuget Imported!"
     start-sleep -Seconds 3
-    Clear-Host
 }
 
-Write-Output "STEP 1: MODIFYING SETTINGS"
+$newline
 
 # Updating the PSGallery (Default) repository.
 Write-Output "Updating the PSGallery installation policy to Trusted"
@@ -87,16 +87,14 @@ if ($Install_Policy -eq "Trusted") {
     Write-Output "Installation Policy is already set to Trusted."
     Get-PSRepository -Name PSGallery | Format-List Name,SourceLocation,Trusted,Registered,InstallationPolicy
     start-sleep -Seconds 3
-    Clear-Host
 } else {
     Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
     Write-Output "Installation set to Trusted."
     Get-PSRepository -Name PSGallery | Format-List Name,SourceLocation,Trusted,Registered,InstallationPolicy
     start-sleep -Seconds 3
-    Clear-Host
-}
+} Clear-Host
 
-Write-Output "STEP 2: RETRIEVING THE MODULES FROM PSGALLERY"
+Write-Output "STEP 2: RETRIEVING THE MODULES FROM PSGALLERY `n"
 
 # Installing the PSWindowsUpdate module.
 Write-Output "Checking if PSWindowsUpdate is already installed..."
@@ -107,18 +105,16 @@ if ((Get-InstalledModule -Name PSWindowsUpdate).name -contains "PSWindowsUpdate"
     Write-Output "PSWindowsUpdate installed. Importing the module..."
     start-sleep -Seconds 2
     Import-Module -name PSWindowsUpdate
-    Get-Module
 } else {
     Write-Output "Looks like your computer has the PSWindowsUpdate module installed. Importing the module..."
     start-sleep -Seconds 2
     Import-Module -name PSWindowsUpdate
-    Get-Module
-} Write-Output "Import complete!"
-
+} 
+Get-Module
+Write-Output "Import complete!"
 Start-Sleep -Seconds 5
-Clear-Host
 
-Write-Output "STEP 2: RETRIEVING THE MODULES FROM PSGALLERY"
+$newline
 
 # Installing the PendingReboot module.
 Write-Output "Checking if PendingReboot is already installed..."
@@ -129,14 +125,14 @@ if ((Get-InstalledModule -Name PendingReboot).name -contains "PendingReboot" -eq
     Write-Output "PendingReboot installed. Importing the module..."
     start-sleep -Seconds 2
     Import-Module -name PendingReboot
-    Get-Module
 } else {
     Write-Output "Looks like your computer has the PendingReboot module installed. Importing the module..."
     start-sleep -Seconds 2
     Import-Module -name PendingReboot
     Get-Module
-} Write-Output "Import complete! You are now ready to install updates."
-
+} 
+Get-Module
+Write-Output "Import complete! You are now ready to install updates."
 Start-Sleep -Seconds 5
 Clear-Host
 
@@ -175,65 +171,68 @@ if (!((Get-WUServiceManager -ServiceID $WindowsUpdateServiceId).ServiceID -eq $W
 
 #>
 
-Write-Output "STEP 3: UPDATES"
+Write-Output "STEP 3: UPDATES `n"
+#$Reboot_Status = (Test-PendingReboot -SkipConfigurationManagerClientCheck).IsRebootPending
 
 ###########################
 # STAGE 1: DRIVER UPDATES #
 ###########################
-
-Write-Output "STAGE 1: CHECKING FOR DRIVER UPDATES"
+Write-Output "CHECKING FOR DRIVER UPDATES"
 Get-WUList -UpdateType Driver
-Get-WUInstall -MicrosoftUpdate -UpdateType Driver -AcceptAll -Download -Install -IgnoreBoot
-$Reboot_Status = (Test-PendingReboot -SkipConfigurationManagerClientCheck).IsRebootPending
-if ($Reboot_Status -eq $true) {
-    Write-Output "One of the updates requires a reboot. Rebooting..."
-    Start-sleep -Seconds 1
-    Restart-Computer -Force
-    break
-} else {
+Get-WUInstall -MicrosoftUpdate -UpdateType Driver -AcceptAll -Download -Install -IgnoreReboot
+Write-Output "Checking for any installed updates that require a reboot..."
+Start-Sleep -Seconds 10
+if ((Test-PendingReboot -SkipConfigurationManagerClientCheck).IsRebootPending -eq $false) {
     Write-Host "Drivers are up to date" -ForegroundColor Green
     start-sleep -Seconds 5
     Clear-Host
+} else {
+    Write-Output "One or more updates requires a reboot. Rebooting..."
+    Start-sleep -Seconds 2
+    Restart-Computer -Force
+    break
 }
 
-Write-Output "STEP 3: UPDATES"
+Write-Output "STEP 3: UPDATES `n"
 
 #############################
 # STAGE 2: SOFTWARE UPDATES #
 #############################
-
-Write-Output "STAGE 2: CHECKING FOR SOFTWARE UPDATES"
+Write-Output "CHECKING FOR SOFTWARE UPDATES"
 Get-WUList -UpdateType Software
-Get-WUInstall -MicrosoftUpdate -UpdateType Software -AcceptAll -Download -Install -IgnoreBoot
-if ($Reboot_Status -eq $true) {
-    Write-Output "One of the updates requires a reboot. Rebooting..."
-    Start-sleep -Seconds 1
-    Restart-Computer -Force
-    break
-} else {
-    Write-Host "Software is up to date." -ForegroundColor Green
+Get-WUInstall -MicrosoftUpdate -UpdateType Software -AcceptAll -Download -Install -IgnoreReboot
+Write-Output "Checking for any installed updates that require a reboot..."
+Start-Sleep -Seconds 10
+if ((Test-PendingReboot -SkipConfigurationManagerClientCheck).IsRebootPending -eq $false) {
+    Write-Host "Software is up to date" -ForegroundColor Green
     start-sleep -Seconds 5
     Clear-Host
+} else {
+    Write-Output "One or more updates requires a reboot. Rebooting..."
+    Start-sleep -Seconds 2
+    Restart-Computer -Force
+    break
 }
 
-Write-Output "STEP 3: UPDATES"
+Write-Output "STEP 3: UPDATES `n"
 
 ##############################
 #  STAGE 3: WINDOWS UPDATES  #
 ##############################
-
-Write-Output "STAGE 3: CHECKING FOR WINDOWS UPDATES"
+Write-Output "CHECKING FOR WINDOWS UPDATES"
 Get-WUList
-Get-WUInstall -WindowsUpdate -AcceptAll -Download -Install -IgnoreBoot
-if ($Reboot_Status -eq $true) {
-    Write-Output "One of the updates requires a reboot. Rebooting..."
-    Start-sleep -Seconds 1
-    Restart-Computer -Force
-    break
-} else {
-    Write-Host "Windows is up to date." -ForegroundColor Green
+Get-WUInstall -WindowsUpdate -AcceptAll -Download -Install -IgnoreReboot
+Write-Output "Checking for any installed updates that require a reboot..."
+Start-Sleep -Seconds 10
+if ((Test-PendingReboot -SkipConfigurationManagerClientCheck).IsRebootPending -eq $false) {
+    Write-Host "Windows is up to date" -ForegroundColor Green
     start-sleep -Seconds 5
     Clear-Host
+} else {
+    Write-Output "One or more updates requires a reboot. Rebooting..."
+    Start-sleep -Seconds 2
+    Restart-Computer -Force
+    break
 }
 
 # Once computer is fully up to date, revert back to its original settings.
@@ -241,7 +240,7 @@ if ($Reboot_Status -eq $true) {
 Write-Output "Your computer is now fully updated. We will now revert all modified settings back to its original settings."
 Start-Sleep -seconds 5
 Clear-Host
-Write-Output "STEP 4: SETTINGS CLEANUP"
+Write-Output "STEP 4: REVERTING CHANGES `n"
 
 ##############################
 #      SETTINGS CLEANUP      #
@@ -257,7 +256,7 @@ Get-Module
 start-sleep -Seconds 2
 Clear-Host
 
-Write-Output "STEP 4: SETTINGS CLEANUP"
+Write-Output "STEP 4: REVERTING CHANGES `n"
 
 # Uninstalling the PendingReboot module
 Write-Output "Removing the PendingReboot module..."
@@ -269,7 +268,7 @@ Get-Module
 start-sleep -Seconds 2
 Clear-Host
 
-Write-Output "STEP 4: SETTINGS CLEANUP"
+Write-Output "STEP 4: REVERTING CHANGES `n"
 
 # Change the default repository back to Untrusted
 Write-Output "Setting PSGallery repository to Untrusted..."
@@ -283,7 +282,7 @@ if ($Install_Policy -contains "Untrusted") {
     Clear-Host
 }
 
-Write-Output "STEP 4: SETTINGS CLEANUP"
+Write-Output "STEP 4: REVERTING CHANGES `n"
 
 # Revert Execution Policy to Undefined
 Write-Output "Setting the execution policy to Undefined..."
@@ -294,10 +293,11 @@ if ($Execution_Policy -contains "Undefined") {
     Write-Output "Execution Policy set back to Undefined."
     Get-ExecutionPolicy -List
     start-sleep -Seconds 3
-    Clear-Host
 }
 
-Write-Output "STEP 5: FINALIZING SYSTEM"
+Clear-Host
+
+Write-Output "STEP 5: FINALIZING SYSTEM `n"
 
 # Sysprep the PC
 Write-Output "Preparing Sysprep..."
@@ -317,4 +317,3 @@ Write-Output "Script complete! This script will self-destruct in 3 seconds."
 }
 Write-Output -InputObject "Goodbye."
 Remove-Item -Path $MyInvocation.MyCommand.Source -Force
-
