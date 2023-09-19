@@ -19,7 +19,7 @@ NEW:
 
 REVISIONS:
 1. Removed Microsoft/Windows Update verification service as it is unnecessary.
-2. Revised the message for updates that requires a restart on Step 3 of the script: "One of the updates requires a reboot. Aborting script!"
+2. Revised the message for updates that requires a restart on Step 3 of the script: "One of the updates requires a reboot. Rebooting..."
 3. Changed the execution policy on Step 4 of the script from "Restricted" to "Undefined", since it is the original setting for the built-in Administrator account.
 4. Made minor revisions on output messages.
 5. Added Get-ExecutionPolicy -List on the beginning of the execution policy script.
@@ -186,8 +186,9 @@ Get-WUList -UpdateType Driver
 Get-WUInstall -MicrosoftUpdate -UpdateType Driver -AcceptAll -Download -Install -IgnoreBoot
 $Reboot_Status = (Test-PendingReboot -SkipConfigurationManagerClientCheck).IsRebootPending
 if ($Reboot_Status -eq $true) {
-    Write-Output "One of the updates requires a reboot. Aborting script!"
+    Write-Output "One of the updates requires a reboot. Rebooting..."
     Start-sleep -Seconds 1
+    Restart-Computer -Force
     break
 } else {
     Write-Host "Drivers are up to date" -ForegroundColor Green
@@ -205,8 +206,9 @@ Write-Output "STAGE 2: CHECKING FOR SOFTWARE UPDATES"
 Get-WUList -UpdateType Software
 Get-WUInstall -MicrosoftUpdate -UpdateType Software -AcceptAll -Download -Install -IgnoreBoot
 if ($Reboot_Status -eq $true) {
-    return "One of the updates requires a reboot. Aborting script!"
+    Write-Output "One of the updates requires a reboot. Rebooting..."
     Start-sleep -Seconds 1
+    Restart-Computer -Force
     break
 } else {
     Write-Host "Software is up to date." -ForegroundColor Green
@@ -224,8 +226,9 @@ Write-Output "STAGE 3: CHECKING FOR WINDOWS UPDATES"
 Get-WUList
 Get-WUInstall -WindowsUpdate -AcceptAll -Download -Install -IgnoreBoot
 if ($Reboot_Status -eq $true) {
-    Write-Output "One of the updates requires a reboot. Aborting script!"
+    Write-Output "One of the updates requires a reboot. Rebooting..."
     Start-sleep -Seconds 1
+    Restart-Computer -Force
     break
 } else {
     Write-Host "Windows is up to date." -ForegroundColor Green
