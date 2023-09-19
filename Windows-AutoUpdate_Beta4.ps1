@@ -183,7 +183,7 @@ Write-Output "STEP 3: UPDATES"
 
 Write-Output "STAGE 1: CHECKING FOR DRIVER UPDATES"
 Get-WUList -UpdateType Driver
-Get-WUInstall -MicrosoftUpdate -UpdateType Driver -AcceptAll -Download -Install -AutoReboot
+Get-WUInstall -MicrosoftUpdate -UpdateType Driver -AcceptAll -Download -Install -IgnoreBoot
 $Reboot_Status = (Test-PendingReboot -SkipConfigurationManagerClientCheck).IsRebootPending
 if ($Reboot_Status -eq $true) {
     Write-Output "One of the updates requires a reboot. Aborting script!"
@@ -203,7 +203,7 @@ Write-Output "STEP 3: UPDATES"
 
 Write-Output "STAGE 2: CHECKING FOR SOFTWARE UPDATES"
 Get-WUList -UpdateType Software
-Get-WUInstall -MicrosoftUpdate -UpdateType Software -AcceptAll -Download -Install -AutoReboot
+Get-WUInstall -MicrosoftUpdate -UpdateType Software -AcceptAll -Download -Install -IgnoreBoot
 if ($Reboot_Status -eq $true) {
     return "One of the updates requires a reboot. Aborting script!"
     Start-sleep -Seconds 1
@@ -222,7 +222,7 @@ Write-Output "STEP 3: UPDATES"
 
 Write-Output "STAGE 3: CHECKING FOR WINDOWS UPDATES"
 Get-WUList
-Get-WUInstall -WindowsUpdate -AcceptAll -Download -Install -AutoReboot
+Get-WUInstall -WindowsUpdate -AcceptAll -Download -Install -IgnoreBoot
 if ($Reboot_Status -eq $true) {
     Write-Output "One of the updates requires a reboot. Aborting script!"
     Start-sleep -Seconds 1
