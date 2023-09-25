@@ -14,10 +14,12 @@
 RC1 CHANGELOGS:
 
 NEW:
+1. Added a network connectivity test to check for Internet connectivity before running the script.
+
 
 REVISIONS:
 1. Minor revisions on the output messages.
-2. Changed the cmdlet for updates from Get-WUList to Get-WUList
+2. Changed the cmdlet for updates from Get-WUInstall to Get-WUList
 
 
 BUGFIXES:
@@ -30,7 +32,20 @@ BUGFIXES:
 
 $newline = Write-Output "`n"
 
-Write-Output "STEP 1: MODIFYING SETTINGS `n"
+
+# This prerequisite check requires Windows PowerShell V5. This function will not work on later versions.
+Write-Output "Checking for Internet connectivity"
+Start-sleep 5
+while ((Test-Connection 3rtechnology.com -Count 1 -ErrorAction SilentlyContinue).ResponseTime -lt 0) {
+    Write-Host "No Internet connection. Please double check your network configuration. Retrying..." -ForegroundColor Red
+    start-sleep -seconds 5
+}
+
+Write-Host "Internet connection established! Initialing script..." -ForegroundColor Green
+Start-sleep -Seconds 5
+clear
+
+Write-Output "STEP 1: MODIFYING SETTINGS $newline"
 
 # Setting the execution policy
 Write-Output "Setting the Process Execution Policy to Bypass."
@@ -48,7 +63,7 @@ if ($Execution_Policy -contains "Bypass") {
 $newline
 
 # Checks if NuGet is installed on the computer.
-Write-Output "Checking if NuGet is installed on your computer."
+Write-Output "Checking if NuGet is installed on your computer..."
 $nuget = (Get-PackageProvider |  Where-Object {$_.name -eq "Nuget"}).name -contains "NuGet"
 Start-Sleep -Seconds 3
 if ($nuget -eq $true) {
@@ -68,7 +83,7 @@ if ($nuget -eq $true) {
     Import-PackageProvider -name Nuget
     Write-Output "Nuget Imported!"
     start-sleep -Seconds 3
-}
+} Get-PackageProvider -name NuGet
 
 $newline
 
@@ -91,7 +106,7 @@ Write-Output "STEP 2: RETRIEVING THE REQUIRED MODULES FROM PSGALLERY `n"
 
 # Installing the PSWindowsUpdate module.
 Write-Output "Checking if PSWindowsUpdate is already installed..."
-if ((Get-InstalledModule -Name PSWindowsUpdate).name -contains "PSWindowsUpdate" -eq $false) {
+if ((Get-InstalledModule -Name PSWindowsUpdate -ErrorAction SilentlyContinue).name -contains "PSWindowsUpdate" -eq $false) {
     Write-Output "PSWindowsUpdate module not installed. Installing PSWindowsUpdate..."
     Install-Module -name PSWindowsUpdate -Force
     start-sleep -Seconds 2
@@ -136,6 +151,7 @@ Write-Output "STEP 3: UPDATES `n"
 ###########################
 # STAGE 1: DRIVER UPDATES #
 ###########################
+
 Write-Output "CHECKING FOR DRIVER UPDATES"
 Get-WUList -MicrosoftUpdate -UpdateType Driver -AcceptAll -Download -Install -IgnoreReboot
 Write-Output "Checking for installed updates (if any) that require a reboot..."
@@ -156,6 +172,7 @@ Write-Output "STEP 3: UPDATES `n"
 #############################
 # STAGE 2: SOFTWARE UPDATES #
 #############################
+
 Write-Output "CHECKING FOR SOFTWARE UPDATES"
 Get-WUList -MicrosoftUpdate -UpdateType Software -AcceptAll -Download -Install -IgnoreReboot
 Write-Output "Checking for installed updates (if any) that require a reboot..."
@@ -176,6 +193,7 @@ Write-Output "STEP 3: UPDATES `n"
 ##############################
 #  STAGE 3: WINDOWS UPDATES  #
 ##############################
+
 Write-Output "CHECKING FOR WINDOWS UPDATES"
 Get-WUList -WindowsUpdate -AcceptAll -Download -Install -IgnoreReboot
 Write-Output "Checking for installed updates (if any) that require a reboot..."
@@ -254,8 +272,6 @@ if ($Execution_Policy -contains "Undefined") {
 Clear-Host
 
 Write-Output "STEP 5: FINALIZING SYSTEM `n"
-
-# Sysprep the PC
 Write-Output "Preparing Sysprep..."
 Start-sleep 5
 Set-Location $env:SystemRoot\System32\Sysprep
@@ -274,5 +290,5 @@ Write-Output "Script complete! This script will self-destruct in 3 seconds."
     }
     Start-Sleep -Seconds 1
 }
-Write-Output -InputObject "BOOM!"
+Write-Host "BOOM!" -BackgroundColor Red
 Remove-Item -Path $MyInvocation.MyCommand.Source -Force
