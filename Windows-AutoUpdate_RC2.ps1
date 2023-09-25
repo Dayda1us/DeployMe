@@ -3,8 +3,8 @@
 #                  WINDOWS AUTO UPDATE SCRIPT (RELEASE CANDIDATE 2)                 #
 #                                                                                   #
 #       Leverages Microsoft Update provider to install all missing updates          #
-#       using the PSWindowsUpdate module. THIS RC RELEASE MAY                       #
-#       CONTAIN UNEXPECTED RESULTS. USE AT YOUR OWN RISK!                           #
+#       using the PSWindowsUpdate module. THIS SCRIPT MAY CONTAIN UNEXPECTED        #
+#       RESULTS. USE AT YOUR OWN RISK!                                              #
 #                                                                                   #
 #                           Developed by Charles Thai                               #
 #####################################################################################
