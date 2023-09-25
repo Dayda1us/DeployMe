@@ -1,3 +1,3 @@
 # Windows-AutoUpdate
 
-Automated script to pull Microsoft and Windows Updates using PSWindowsUpdate module
+An automated script to grab updates from Microsoft via PowerShell.
