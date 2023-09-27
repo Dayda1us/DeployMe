@@ -19,29 +19,18 @@ NEW:
 REVISIONS:
 1. Split the codes into group of functions for easier maintenance.
 2. Minor revisions on output messages.
+3. Removed delete function
 
 
 BUGFIXES:
 1. Fixed an issue on Reboot_module function where it displays the Get-Module twice.
-
+2. Fixed an issue on final step of deployment where the script does not delete itself properly.
 #>
 
 # This script must be started with elevated user rights.
 #Requires -RunAsAdministrator
 
 $newline = Write-Output "`n"
-
-# This prerequisite check requires Windows PowerShell V5. This function will not work on later versions.
-Write-Output "Checking for Internet connectivity...."
-Start-sleep 5
-while ((Test-Connection 3rtechnology.com -Count 1 -ErrorAction SilentlyContinue).ResponseTime -lt 0) {
-    Write-Host "No Internet connection. Please double check your network configuration. Retrying..." -ForegroundColor Red
-    start-sleep -seconds 5
-}
-
-Write-Host "Internet connection established! Initializing script..." -ForegroundColor Green
-Start-sleep -Seconds 5
-Clear-Host
 
 ##########################
 #   MODIFYING SETTINGS   #
@@ -272,6 +261,23 @@ function revert_expolicy {
     Clear-Host    
 }
 
+# Remove Refurb account.
+function LocalAccountRemoval {
+    $Account = "Refurb"
+    Write-Output "Retrieving previously created account..."
+    Start-Sleep -Seconds 5
+    if ((Get-LocalUser -Name $Account -EA SilentlyContinue).name -eq $Account) {
+        Write-Output "Removing account.."
+        Start-Sleep -Seconds 1
+        Write-Host "Account removed! $newline" -ForegroundColor Green
+    } else {
+        Write-Host "Account doesn't exist! `n" -ForegroundColor Red
+        Start-Sleep -seconds 1
+    } #endif
+    Get-LocalUser 
+} #function
+
+
 # Checks if Sysprep is already opened
 function sysprep_check {
     $check_sysprep = "sysprep"
@@ -290,25 +296,20 @@ function deploy {
     Start-sleep 5
     Set-Location $env:SystemRoot\System32\Sysprep
     .\sysprep.exe /oobe
-    shutdown.exe /s /t 05
+    shutdown.exe /s /t 10
 }
 
-# Delete the script.
-function delete {
-    Write-Output "Script complete! This script will self-destruct in 3 seconds."
-    3..1 | ForEach-Object {
-        If ($_ -gt 1) {
-            "$_ seconds"
-        } Else {
-            "$_ second"
-        }
-        Start-Sleep -Seconds 1
-    }
-    Write-Host "BOOM!"
-    Remove-Item -Path $MyInvocation.MyCommand.Source -Force
+# This prerequisite check requires Windows PowerShell V5. This function will not work on later versions.
+Write-Output "Checking for Internet connectivity...."
+Start-sleep 5
+while ((Test-Connection 3rtechnology.com -Count 1 -ErrorAction SilentlyContinue).ResponseTime -lt 0) {
+    Write-Host "No Internet connection. Please double check your network configuration. Retrying..." -ForegroundColor Red
+    start-sleep -seconds 5
 }
 
-
+Write-Host "Internet connection established! Initializing script..." -ForegroundColor Green
+Start-sleep -Seconds 5
+Clear-Host
 
 Write-Output "STEP 1: MODIFYING SETTINGS $newline"
 exec_policy
@@ -324,6 +325,7 @@ Write-Output "You are now ready to install updates."
 Start-Sleep -Seconds 5
 Clear-Host
 
+
 Write-Output "STEP 3: CHECK FOR UPDATES $newline"
 drivers_update
 software_update
@@ -334,13 +336,27 @@ Write-Output "The computer is now fully updated. Preparing to revert all modifie
 Start-Sleep -seconds 5
 Clear-Host
 
-
 Write-Output "STEP 4: REVERTING SETTINGS $newline"
-module_remove
+#module_remove
 psgallery_revert
 revert_expolicy
 
+# Disabled Sysprep functions.
 Write-Output "FINAL STEP: DEPLOYING SYSTEM"
 sysprep_check
-deploy
-delete
+LocalAccountRemoval
+#deploy
+
+# Delete the script once it is done.
+Write-Output "Script complete! This script will self-destruct in 3 seconds."
+3..1 | ForEach-Object {
+    If ($_ -gt 1) {
+        "$_ seconds"
+    } Else {
+        "$_ second"
+    }
+    Start-Sleep -Seconds 1
+}
+Write-Output "Script deleted!"
+Remove-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat" -Force -EA SilentlyContinue
+Remove-Item -Path $MyInvocation.MyCommand.Source -Force
