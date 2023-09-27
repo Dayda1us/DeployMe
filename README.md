@@ -1,3 +1,3 @@
-# Windows-AutoUpdate
+# Windows-AutoDeploy
 
-An automated script to grab updates from Microsoft via PowerShell.
+Formerly Windows-AutoUpdate is an automated that grabs Microsoft Updates via PowerShell, and add the Windows product key using a software called KeyDeploy.
