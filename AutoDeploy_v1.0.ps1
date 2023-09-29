@@ -13,7 +13,7 @@
 PRODUCTION v1.0 CHANGELOGS:
 
 NEW:
-1. Created company logo in ASCII.
+1. Created company name in ASCII.
 
 REVISIONS:
 1. Renamed ps1 file from "Windows-AutoUpdate" to "AutoDeploy".
@@ -22,11 +22,13 @@ REVISIONS:
 
 BUGFIXES:
 1. Added Remove-LocalUser on LocalAccountRemoval function. Now it should automatically remove the local account.
+2. Added an ErrorAction parameter on the PendingRebootModule to SilentlyContinue to suppress the error message if module is not installed.
 
 
 TODO: 
 1. Add the DeployKey functionality to the script with a message prompt.
 2. Check the CheckForReboot functionality.
+3. Combine all updates into one instead of three stages.
 
 #>
 
@@ -145,7 +147,7 @@ function PSWinUpdateModule {
 # Check if PendingReboot module is installed.
 function PendingRebootModule {
     Write-Output "Checking if PendingReboot is already installed..."
-    if ((Get-InstalledModule -Name PendingReboot).name -contains "PendingReboot" -eq $false) {
+    if ((Get-InstalledModule -Name PendingReboot -EA SilentlyContinue).name -contains "PendingReboot" -eq $false) {
         Write-Output "PendingReboot module not installed. Installing PendingReboot..."
         Install-Module -name PendingReboot -Force
         start-sleep -Seconds 2
@@ -164,7 +166,7 @@ function PendingRebootModule {
     } #if
 } #function
 
-#TODO: Separate reboot check. Test on VM
+#TODO: Separate reboot check. Tested and working.
 function CheckForReboot {
     Write-Output "Checking for installed updates (if any) that require a reboot..."
     Start-Sleep -Seconds 10
@@ -179,26 +181,26 @@ function CheckForReboot {
     } #if
 } #function
 
+#TODO: Combine all updates into one. Tested on a Lenovo Thinkpad X1 Carbon.
+function Updates {
+    Write-Output "CHECKING FOR UPDATES"
+    $GWU = Get-WUList -MicrosoftUpdate
+    $GWU
+    Get-WUList -AcceptAll -Install -IgnoreReboot
+    CheckForReboot
+    Clear-Host
+} #function
+
+# REMOVE THREE FUNCTIONS AFTER TESTING Updates. KEEP IT SIMPLE STUPID.
+
 ###########################
 #     DRIVER UPDATES      #
 ###########################
+
 function DriverUpdate {
     Write-Output "DRIVER UPDATES"
     Get-WUList -MicrosoftUpdate -UpdateType Driver -AcceptAll -Download -Install -IgnoreReboot
     CheckForReboot
-    <#
-    Write-Output "Checking for installed updates (if any) that require a reboot..."
-    Start-Sleep -Seconds 10
-    if ((Test-PendingReboot -SkipConfigurationManagerClientCheck).IsRebootPending -eq $false) {
-        Write-Host "Drivers are up to date" -ForegroundColor Green
-        start-sleep -Seconds 5
-    } else {
-        Write-Output "One or more updates requires a reboot. Rebooting..."
-        Start-sleep -Seconds 5
-        Restart-Computer -Force
-        break
-    } #if
-    #>
     Clear-Host
 } #function
 
@@ -209,22 +211,10 @@ function SoftwareUpdate {
     Write-Output "SOFTWARE UPDATES AND VIRUS DEFINITIONS"
     Get-WUList -MicrosoftUpdate -UpdateType Software -AcceptAll -Download -Install -IgnoreReboot
     CheckForReboot
-    <#
-    Write-Output "Checking for installed updates (if any) that require a reboot..."
-    Start-Sleep -Seconds 10
-    if ((Test-PendingReboot -SkipConfigurationManagerClientCheck).IsRebootPending -eq $false) {
-        Write-Host "Software is up to date" -ForegroundColor Green
-        start-sleep -Seconds 5
-    } else {
-        Write-Output "One or more updates requires a reboot. Rebooting..."
-        Start-sleep -Seconds 5
-        Restart-Computer -Force
-        break
-    } #if
-    #>
     Clear-Host
 } #function
 
+# TO BE REMOVED: REDUNDANT.
 #######################
 #   WINDOWS UPDATES   #
 #######################
@@ -232,19 +222,6 @@ function WinUpdate {
     Write-Output "WINDOWS UPDATES"
     Get-WUList -WindowsUpdate -AcceptAll -Download -Install -IgnoreReboot
     CheckForReboot
-    <#
-    Write-Output "Checking for installed updates (if any) that require a reboot..."
-    Start-Sleep -Seconds 10
-    if ((Test-PendingReboot -SkipConfigurationManagerClientCheck).IsRebootPending -eq $false) {
-        Write-Host "Windows is up to date" -ForegroundColor Green
-        start-sleep -Seconds 5
-    } else {
-        Write-Output "One or more updates requires a reboot. Rebooting..."
-        Start-sleep -Seconds 5
-        Restart-Computer -Force
-        break
-    } #if
-    #>
     Clear-Host
 } #function
 
@@ -405,9 +382,7 @@ Clear-Host
 
 
 Write-Output "STAGE 2: UPDATES $newline"
-DriverUpdate
-SoftwareUpdate
-WinUpdate
+Updates
 
 # Once computer is fully updated, revert back to its original settings.
 Write-Output "The computer is now fully updated. Preparing to revert all modified settings back to its original configuration."
