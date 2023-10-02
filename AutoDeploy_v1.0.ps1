@@ -23,6 +23,7 @@ REVISIONS:
 5. Separated the reboot codes in updates into it's own function: "CheckForReboot".
 6. Changed format cmdlet on TrustPSGallery to "format-table".
 7. Revamped the UndefinedPolicy with a switch statement.
+8. Removed the Import-PackageProvider on NuGetCheck on true statement.
 
 BUGFIXES:
 1. Added Remove-LocalUser on LocalAccountRemoval function. Now it should automatically remove the local account.
