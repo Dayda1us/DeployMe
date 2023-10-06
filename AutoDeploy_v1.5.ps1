@@ -30,29 +30,9 @@ Start-Sleep -seconds 3
 Clear-Host
 
 
-##########################
-#   MODIFYING SETTINGS   #
-##########################
-
-# Sets the process execution policy to Bypass. Test the script without running this function.
-# RESULT: Tested without running this function, and appears to run the script just fine without this function added.
-# TODO: REMOVE THIS FUNCTION AS THE STARTUP BATCH ALREADY SETS THE EXECUTION POLICY TO BYPASS.
-function BypassPolicy { 
-    Write-Output "Setting the Process Execution Policy to Bypass."
-
-    $Execution_Policy = Get-ExecutionPolicy -Scope Process
-
-    if ($Execution_Policy -contains "Bypass") {
-        Write-Output "Process Execution Policy is already set to Bypass."
-        Get-ExecutionPolicy -List
-    } else {
-        Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force
-        Write-Output "Process Execution Policy set to Bypass."
-        Get-ExecutionPolicy -List
-    } #endif
-
-    $newline
-} #function
+###########################
+#  INSTALL REQ'D MODULES  #
+###########################
 
 # Checks if NuGet is installed on the computer.
 function NuGetCheck {
@@ -66,11 +46,9 @@ function NuGetCheck {
         start-sleep -seconds 2
     } else {
         Write-Output "NuGet not installed. Installing NuGet..."
-        start-sleep -Seconds 2
         Install-PackageProvider -name NuGet -Force -ForceBootstrap
 
         Write-Output "`nInstalled NuGet. Importing NuGet..."
-        start-sleep -Seconds 2
         Import-PackageProvider -name Nuget
 
         Write-Output "NuGet Imported!`n"
@@ -82,7 +60,6 @@ function NuGetCheck {
 # Update the PSGallery (Default) repository to trusted to ensure the installed modules work properly.
 function TrustPSGallery {
     Write-Output "Updating the PSGallery installation policy to Trusted"
-    Start-Sleep -Seconds 2
 
     $PSGallery = (Get-PSRepository -Name PSGallery).name -eq "PSGallery"
     $Install_Policy = (Get-PSRepository -Name PSGallery | Where-Object {$_.InstallationPolicy -contains "Trusted"}).InstallationPolicy
@@ -99,10 +76,6 @@ function TrustPSGallery {
     } #if
 } #function
 
-###########################
-#  INSTALL REQ'D MODULES  #
-###########################
-
 # Check if PSWindowsUpdate module is installed.
 function PSWinUpdateModule {
     Write-Output "Checking for PSWindowsUpdate module..."
@@ -110,55 +83,14 @@ function PSWinUpdateModule {
     if ((Get-InstalledModule -Name PSWindowsUpdate).name -contains "PSWindowsUpdate" -eq $false) {
         Write-Output "PSWindowsUpdate module not installed. Installing PSWindowsUpdate..."
         Install-Module -name PSWindowsUpdate -Force
-        start-sleep -Seconds 2
         Write-Output "PSWindowsUpdate installed. Importing PSWindowsUpdate..."
-        start-sleep -Seconds 2
         Import-Module -name PSWindowsUpdate
     } else {
         Write-Output "PSWindowsUpdate module is already installed! Importing PSWindowsUpdate..."
-        start-sleep -Seconds 2
         Import-Module -name PSWindowsUpdate
     } #if
     Write-Host "Import Complete!" -ForegroundColor Green
     Start-Sleep -Seconds 2
-} #function
-
-# Check if PendingReboot module is installed.
-# TODO: To be removed. WILL BE REMOVED AFTER FURTHER TESTING.
-function PendingRebootModule {
-    Write-Output "Checking for PendingReboot module..."
-
-    if ((Get-InstalledModule -Name PendingReboot).name -contains "PendingReboot" -eq $false) {
-        Write-Output "PendingReboot module not installed. Installing PendingReboot..."
-        Install-Module -name PendingReboot -Force
-        start-sleep -Seconds 2
-        Write-Output "PendingReboot installed. Importing PendingReboot..."
-        start-sleep -Seconds 2
-        Import-Module -name PendingReboot
-    } else {
-        Write-Output "PendingReboot module is already installed. Importing PendingReboot..."
-        start-sleep -Seconds 2
-        Import-Module -name PendingReboot
-    } #if
-    $newline
-    Write-Host "`nImport Complete!" -ForegroundColor Green
-    Start-sleep -seconds 2
-    Clear-Host
-} #function
-
-# TEST USING THE PSWINDOWSUPDATE AUTOREBOOT PARAMETER. IF WORKS, REMOVE THIS FUNCTION.
-# RESULT: Using Get-WURebootStatus works fine. Will deprecate PendingReboot in favor of Get-WURebootStatus
-function CheckForReboot {
-    $WUReboot = Get-WURebootStatus -Silent
-
-    if (($WUReboot -eq $true)) {
-        Write-Output "One or more updates require a reboot."
-        Start-sleep -Seconds 1
-        break
-    } else {
-        RevertSettingMessage
-        start-sleep -Seconds 3
-    } #if
 } #function
 
 function Updates {
@@ -169,7 +101,7 @@ function Updates {
     if (($WUReboot -eq $true)) {
         Write-Output "One or more updates require a reboot."
         Start-sleep -Seconds 1
-        break
+        exit
     } else {
         RevertSettingMessage
         start-sleep -Seconds 3
@@ -220,7 +152,7 @@ function UntrustPSGallery {
     $newline
 } #function
 
-# Revert Execution Policy to Undefined
+# Revert any Execution Policy to Undefined
 function UndefinedPolicy {
     Write-Output "Setting any scope execution policy to Undefined..."
     start-sleep -Seconds 2
@@ -263,7 +195,8 @@ function UndefinedPolicy {
 ################
 
 # Remove Refurb account.
-function LocalAccountRemoval {
+# TO BE DEPRECATED.
+function LocalAccountRemoval_DEPRECATED {
     $Account = "Refurb"
     Write-Output "Retrieving previously created account: $Account..."
     Start-Sleep -Seconds 2
@@ -279,20 +212,60 @@ function LocalAccountRemoval {
     } #endif 
 } #function
 
+#TODO: Test this new function.
+#RESULT: Tested this function on a VM, and confirm that this robust function is working.
+function LocalAccountRemoval {
+    $Account = "Refurb"
+    Write-Output "Retrieving previously created local account: $account"
+    Start-Sleep -Seconds 2
+    try {
+    Remove-LocalUser -Name $Account -EA Stop
+    Write-Host "$Account account removed!`n" -ForegroundColor Green
+    Get-LocalUser
+    Start-sleep -Seconds 2
+    } 
+    catch {
+        Write-Warning "$account account doesn't exist!"
+        "Skipping local account removal"
+    } #try/catch
+} #function
+
+
 
 # Checks if Sysprep is already opened
-function CheckSysprep {
+# TO BE DEPRECATED.
+function CheckSysprep_DEPRECATED {
     Write-Output "`nChecking if Sysprep is already opened..."
     $CheckForSysprep = "sysprep"
     Start-Sleep -Seconds 3
     if ((Get-Process $CheckForSysprep).ProcessName -contains "sysprep") {
         Write-Output "Terminating Sysprep...`n"
-        Start-sleep -Seconds 3
+        Start-sleep -Seconds 2
         Stop-Process -ProcessName $CheckForSysprep
         Write-Host "Sysprep terminated." -ForegroundColor Green
     } else {
         Write-Host "Sysprep is not opened. Skipping Sysprep check.`n" -ForegroundColor Red
     } #endif
+} #function
+
+#TODO: This this new function on a VM.
+#RESULT: Tested this function on a VM, and confirm that this robust function is working.
+function CheckSysprep {
+    $process = "Sysprep"
+    Write-Output "`nChecking for $process..."
+    Start-Sleep -Seconds 3
+    try {
+        if ((Get-Process $process -EA Stop).ProcessName -contains $process) {
+            Write-Output "Terminating $process...`n"
+            Start-sleep -Seconds 3
+            Stop-Process -ProcessName $process
+            Write-Host "$process terminated." -ForegroundColor Green
+        }
+    }
+    catch {
+        Write-Warning "$process is not opened."
+        Write-Output "Skipping $process check"
+    } #try/catch
 } #function
 
 #TODO: Get KeyDeploy working
@@ -351,7 +324,6 @@ function Stage3 {
     Write-Output "STAGE 3: REVERT SETTINGS`n"
     RemoveModules
     UntrustPSGallery
-    #UndefinedPolicy
 }
 
 function Stage4 {
@@ -395,7 +367,6 @@ function Deploy {
     Start-sleep -Seconds 5
     Clear-Host
 
-    #$EP = (Get-ExecutionPolicy -Scope Process) -contains "Bypass"
     $NuGet = (Get-PackageProvider |  Where-Object {$_.name -eq "Nuget"}).name -contains "NuGet"
     $PSGallery = (Get-PSRepository -name PSGallery).name -eq "PSGallery"
     $InstallPolicy = (Get-PSRepository -Name PSGallery | Where-Object {$_.InstallationPolicy -contains "Trusted"}).InstallationPolicy
@@ -403,7 +374,7 @@ function Deploy {
     Write-Verbose -Message "Checking if the script has already been started"
     Write-Output "Initializing script...`n"
     Start-sleep -Seconds 3
-    if (<#$EP -eq "Bypass" -and#> $NuGet -eq $true -and $PSGallery -eq $true -and $InstallPolicy -eq "Trusted") {
+    if ($NuGet -eq $true -and $PSGallery -eq $true -and $InstallPolicy -eq "Trusted") {
         Write-Output "The script has detected that the settings were already modified. Importing the required module..."
         Start-Sleep -Seconds 2
         Import-Module -Name PSWindowsUpdate
@@ -435,7 +406,7 @@ function Deploy {
         Write-Verbose -Message "Initializing script for the first time"
         Clear-Host
         Stage1
-        Stage2
+        #Stage2
         Stage3
         Stage4
     }
