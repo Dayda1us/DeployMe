@@ -29,13 +29,45 @@ Write-Output "##################################################################
 Start-Sleep -seconds 3
 Clear-Host
 
+function Set-Message {
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory=$true)]
+        [int]$Message
+    )
+
+    $SelectedNumber = $Message
+    [int[]]$numbers = (1,2,3)
+
+    switch ($Number) {
+        {$SelectedNumber -eq $numbers[0]} {
+            Write-Output "You are now ready to install updates"
+            Start-Sleep -Seconds 5
+            Clear-Host
+        }
+        {$SelectedNumber -eq $numbers[1]} {
+            Write-Host "`nYour PC is up to date" -ForegroundColor Green
+            Write-Output "Preparing for deployment..."
+            Start-Sleep -seconds 5
+            Clear-Host
+        }
+        {$SelectedNumber -eq $numbers[2]} {
+            Write-Output "`nYour PC has updates to install."
+            Start-sleep -Seconds 2
+            Clear-Host
+        }
+        default {
+            Write-Warning "Invalid number. Valid numbers are $numbers"
+        }
+    } #switch
+}#function
 
 ###########################
 #  INSTALL REQ'D MODULES  #
 ###########################
 
 # Checks if NuGet is installed on the computer.
-function NuGetCheck {
+function Get-Nuget {
     $nuget = (Get-PackageProvider |  Where-Object {$_.name -eq "Nuget"}).name -contains "NuGet"
     Write-Output "Checking if NuGet is installed on your computer..."
     Start-Sleep -Seconds 5
@@ -53,167 +85,89 @@ function NuGetCheck {
 
         Write-Output "NuGet Imported!`n"
     } #if
-
     $newline
 } #function
 
-# Update the PSGallery (Default) repository to trusted to ensure the installed modules work properly.
-function TrustPSGallery {
-    Write-Output "Updating the PSGallery installation policy to Trusted"
+# Set PSGallery installation to either trusted or untrusted.
+function Set-PSGallery {
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory=$true)]
+        [ValidateSet('Trusted','Untrusted')]
+        [String]$InstallationPolicy
+    )
+    $Policy = $InstallationPolicy
+    $PSGallery = (Get-PSRepository -Name PSGallery).InstallationPolicy
+    $RepositoryTable = @('Name', `
+                    @{l="Source Location";e={$_.SourceLocation}}, `
+                    'Trusted', `
+                    'Registered', `
+                    'InstallationPolicy')
 
-    $PSGallery = (Get-PSRepository -Name PSGallery).name -eq "PSGallery"
-    $Install_Policy = (Get-PSRepository -Name PSGallery | Where-Object {$_.InstallationPolicy -contains "Trusted"}).InstallationPolicy
 
-    if ($PSGallery -eq $true -and $Install_Policy -eq "Trusted") {
-        Write-Output "Installation Policy is already set to Trusted."
-        Get-PSRepository -Name PSGallery | Format-Table Name,SourceLocation,Trusted,Registered,InstallationPolicy
-        start-sleep -Seconds 3
-    } else {
-        Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
-        Write-Output "Installation set to Trusted."
-        Get-PSRepository -Name PSGallery | Format-Table Name,SourceLocation,Trusted,Registered,InstallationPolicy
-        start-sleep -Seconds 3
-    } #if
+    switch ($InstallPolicy) {
+        {$Policy -contains 'Trusted'} {
+            if ($PSGallery -contains 'Trusted') {
+                Write-Output "PSGallery Installation Policy is already set to $Policy"
+                Get-PSRepository -Name PSGallery | Format-Table $RepositoryTable
+            } Else {
+                Write-Output 'PSGallery Installation Policy set to Trusted'
+                Set-PSRepository -Name PSGallery -InstallationPolicy $Policy
+                Get-PSRepository -Name PSGallery | Format-Table $RepositoryTable
+            }
+        }
+        {$Policy -contains 'Untrusted'} {
+            Write-Output 'PSGallery Installation Policy set to Untrusted'
+            Set-PSRepository -Name PSGallery -InstallationPolicy $Policy
+            Get-PSRepository -Name PSGallery | Format-Table Name,@{l="Source Location";e={$_.SourceLocation}},Trusted,Registered,InstallationPolicy
+        } 
+        default {
+            Write-Host -ForegroundColor Red "An error has occurred:"$_.Exception.Message
+        }
+    }#switch
 } #function
 
-# Check if PSWindowsUpdate module is installed.
-function PSWinUpdateModule {
+# Installs PSWindowsUpdate and imports the module.
+function Install-PSWindowsUpdate {
     Write-Output "Checking for PSWindowsUpdate module..."
+    try {
+        $Module = (Get-InstalledModule -Name PSWindowsUpdate -EA Stop).name -contains 'PSWindowsUpdate'
+        if ($Module -eq $True) {
+            Write-Output 'PSWindowsUpdate is already installed. Importing Module...'
+            Import-Module -Name PSWindowsUpdate
+            Write-Host -ForegroundColor Green "`nImport complete!`n"
+        }#if
+    }
+    catch {
+        Write-Warning 'PSWindowsUpdate is not installed. Installing PSWindowsUpdate...'
+        Install-Module -Name PSWindowsUpdate -Force
+        Write-Output 'PSWindowsUpdate installed. Importing module...'
+        Import-Module -Name PSWindowsUpdate
+        Write-Host -ForegroundColor Green "`nImport complete!`n"
+    } #try/catch
 
-    if ((Get-InstalledModule -Name PSWindowsUpdate).name -contains "PSWindowsUpdate" -eq $false) {
-        Write-Output "PSWindowsUpdate module not installed. Installing PSWindowsUpdate..."
-        Install-Module -name PSWindowsUpdate -Force
-        Write-Output "PSWindowsUpdate installed. Importing PSWindowsUpdate..."
-        Import-Module -name PSWindowsUpdate
-    } else {
-        Write-Output "PSWindowsUpdate module is already installed! Importing PSWindowsUpdate..."
-        Import-Module -name PSWindowsUpdate
-    } #if
-    Write-Host "Import Complete!" -ForegroundColor Green
-    Start-Sleep -Seconds 2
 } #function
 
-function Updates {
+function Get-Update {
     Write-Output "CHECKING FOR UPDATES"
     Get-WUList -AcceptAll -Install -AutoReboot | Format-List Title,KB,Size,Status,RebootRequired
 
     $WUReboot = Get-WURebootStatus -Silent
     if (($WUReboot -eq $true)) {
-        Write-Output "One or more updates require a reboot."
+        Write-Output 'One or more updates require a reboot.'
         Start-sleep -Seconds 1
         exit
     } else {
-        RevertSettingMessage
+        Set-Message -Message 2
         start-sleep -Seconds 3
     } #if
-} #function
-
-#####################
-#  REVERT SETTINGS  #
-#####################
-
-# Remove the installed modules (PSWindowsUpdate).
-function RemoveModules {
-    Write-Output "Removing the installed module..."
-
-    $UpdateModule = (("PSWindowsUpdate" | Get-Module).Name) -eq "PSWindowsUpdate"
-
-    Start-sleep -Seconds 3
-    if ($UpdateModule -eq $True) {
-        "PSWindowsUpdate" | Remove-Module
-        Write-Host "Installed modules removed!`n" -f Green
-        Get-Module
-        start-sleep -Seconds 2
-    } else {
-        Write-Output "The module were already removed."
-        Get-Module
-        Start-sleep -Seconds 2
-    } #if
-    $newline
-} #function
-
-# Revert default Installation Policy to Untrusted
-function UntrustPSGallery {
-    Write-Output "Reverting PSGallery Installation Policy to Untrusted..."
-    Start-Sleep -Seconds 2
-
-    $Install_Policy = ((Get-PSRepository PSGallery).InstallationPolicy) -eq "Trusted"
-
-    if ($Install_Policy -contains "Untrusted") {
-        Set-PSRepository -Name PSGallery -InstallationPolicy Untrusted
-        Write-Output "Installation Policy set to Untrusted."
-        Get-PSRepository -Name PSGallery | Format-Table Name,@{l="Source Location";e={$_.SourceLocation}},Trusted,Registered,InstallationPolicy
-        start-sleep -Seconds 2
-    } else {
-        Write-Output "Installation policy is already set to Untrusted."
-        Get-PSRepository -Name PSGallery | Format-Table Name,@{l="Source Location";e={$_.SourceLocation}},Trusted,Registered,InstallationPolicy
-        start-sleep -Seconds 2
-    }#endif
-    $newline
-} #function
-
-# Revert any Execution Policy to Undefined
-function UndefinedPolicy {
-    Write-Output "Setting any scope execution policy to Undefined..."
-    start-sleep -Seconds 2
-
-    $EP = (Get-ExecutionPolicy -List | Where-Object {$_.Scope -contains "Process"}).ExecutionPolicy
-    $OtherScope = @("AllSigned", "Restricted", "RemoteSigned", "Unrestricted")
-
-    switch($EP) {
-        { $EP -eq "Bypass" } {
-            Set-ExecutionPolicy -ExecutionPolicy Undefined -Scope Process -Force
-            Write-Output "Process execution policy set back to Undefined."
-            Start-Sleep -Seconds 1
-            Get-ExecutionPolicy -List
-
-        }
-        { $EP -eq "Undefined" } {
-            Write-Output "Process execution policy is already set to Undefined"
-            Start-Sleep -Seconds 1
-            Get-ExecutionPolicy -List
-        }
-        { $EP -contains $OtherScope} {
-            Write-Output "Process execution policy was set other than Bypass. Setting back to Undefined..."
-            Start-sleep -Seconds 1
-            Set-ExecutionPolicy -ExecutionPolicy Undefined -Scope Process -Force
-            Write-Output "Process execution policy set back to Undefined."
-            Get-ExecutionPolicy -List
-        }
-        default {
-            Write-Host "Unknown error occurred. Aborting script!" -f Red
-            Start-Sleep -Seconds 2
-            Break
-        }
-    } #switch
-    Start-Sleep -Seconds 2
-    $newline
 } #function
 
 ################
 #  DEPLOYMENT  #
 ################
 
-# Remove Refurb account.
-# TO BE DEPRECATED.
-function LocalAccountRemoval_DEPRECATED {
-    $Account = "Refurb"
-    Write-Output "Retrieving previously created account: $Account..."
-    Start-Sleep -Seconds 2
-    if ((Get-LocalUser -Name $Account).name -eq $Account) {
-        Write-Output "Removing account..."
-        Start-Sleep -Seconds 1
-        Remove-LocalUser -Name $Account
-        Write-Host "$Account account removed!`n" -ForegroundColor Green
-        Get-LocalUser
-    } else {
-        Write-Warning "$Account account doesn't exist!"
-        Write-Output "Skipping account removal"
-    } #endif 
-} #function
-
-#TODO: Test this new function.
-#RESULT: Tested this function on a VM, and confirm that this robust function is working.
+# Removes the Refurb account.
 function LocalAccountRemoval {
     $Account = "Refurb"
     Write-Output "Retrieving previously created local account: $account"
@@ -230,30 +184,11 @@ function LocalAccountRemoval {
     } #try/catch
 } #function
 
-
-
-# Checks if Sysprep is already opened
-# TO BE DEPRECATED.
-function CheckSysprep_DEPRECATED {
-    Write-Output "`nChecking if Sysprep is already opened..."
-    $CheckForSysprep = "sysprep"
-    Start-Sleep -Seconds 3
-    if ((Get-Process $CheckForSysprep).ProcessName -contains "sysprep") {
-        Write-Output "Terminating Sysprep...`n"
-        Start-sleep -Seconds 2
-        Stop-Process -ProcessName $CheckForSysprep
-        Write-Host "Sysprep terminated." -ForegroundColor Green
-    } else {
-        Write-Host "Sysprep is not opened. Skipping Sysprep check.`n" -ForegroundColor Red
-    } #endif
-} #function
-
-#TODO: This this new function on a VM.
-#RESULT: Tested this function on a VM, and confirm that this robust function is working.
+# Checks if Sysprep is opened.
+# TODO: WORK ON KEYDEPLOY
 function CheckSysprep {
     $process = "Sysprep"
     Write-Output "`nChecking for $process..."
-    Start-Sleep -Seconds 3
     try {
         if ((Get-Process $process -EA Stop).ProcessName -contains $process) {
             Write-Output "Terminating $process...`n"
@@ -270,8 +205,6 @@ function CheckSysprep {
 
 #TODO: Get KeyDeploy working
 function DeployKey {
-    [CmdletBinding()]
-    Param()
     Write-Output "This process will open KeyDeploy. If you're deploying a desktop, please power off the computer and connect it to the KeyDeploy server."
     Write-Output "When you're ready, press ENTER to launch KeyDeploy."
     Pause
@@ -287,8 +220,6 @@ function DeployKey {
 
 #TODO: Check if Windows license is installed. Prompt the user if they would like to launch KeyDeploy.
 function CheckWindowsLicense {
-    [CmdletBinding()]
-    Param()
     Write-Output "Check for Windows activation status..."
     if (!(Get-CimInstance SoftwareLicensingProduct).LicenseStatus -eq 0) {
         Write-Host "Your Windows activation key is licensed!" -ForegroundColor Green
@@ -296,10 +227,10 @@ function CheckWindowsLicense {
         Write-Host "Your Windows activation key is not licensed! Would you like to run KeyDeploy manually?" -ForegroundColor Red
         start-sleep -Seconds 2
         break
-    }
-}
+    }#if
+}#function
 
-# Sysprep and delete the script.
+# Sysprep the machine
 function OOBE {
     Write-Output "`nPreparing Sysprep..."
     Start-sleep 5
@@ -307,57 +238,41 @@ function OOBE {
     .\sysprep.exe /oobe
     shutdown.exe /s /t 10
 }
+
 function Stage1 {
     Write-Output "STAGE 1: RETRIEVING THE REQUIRED MODULES`n"
-    NuGetCheck
-    TrustPSGallery
-    PSWinUpdateModule
-    ReadyMessage
+    Get-Nuget
+    Set-PSGallery -InstallationPolicy 'Trusted'
+    Install-PSWindowsUpdate
+    Set-Message -Message 1
 } #function
 
 function Stage2 {
     Write-Output "STAGE 2: UPDATES`n"
-    Updates
+    Get-Update
 } #function
 
 function Stage3 {
-    Write-Output "STAGE 3: REVERT SETTINGS`n"
-    RemoveModules
-    UntrustPSGallery
-}
-
-function Stage4 {
     Write-Output "FINAL STAGE: DEPLOYMENT`n"
+    Set-PSGallery -InstallationPolicy 'Untrusted'
     LocalAccountRemoval
+    CheckSysprep
+
+    # TODO: To be added.
     #DeployKey
     #CheckWindowsLicense
-    CheckSysprep
     #OOBE
 }
 
-function ReadyMessage {
-    Write-Output "You are now ready to install updates"
-    Start-Sleep -Seconds 5
-    Clear-Host
-
-}
-
-function RevertSettingMessage {
-    Write-Host "`nYour PC is up to date" -ForegroundColor Green
-    Write-Output "Preparing to revert all settings back to its original configuration"
-    Start-Sleep -seconds 5
-    Clear-Host
-}
-
-# TODO: This prerequisite check requires Windows PowerShell v5. This function will not work on later versions.
 function Deploy {
     [CmdletBinding()]
     Param()
 
     Write-Verbose -Message "Checks for an Internet connectivity before running the script"
     Write-Output "Checking for Internet connectivity...."
-    Start-sleep 5
+    Start-sleep 3
 
+    # THIS TEST WILL ONLY WORK ON WINDOWS POWERSHELL v5.
     while ((Test-Connection 3rtechnology.com -Count 1).ResponseTime -lt 0) {
         Write-Warning -Message "No Internet connection. Please double check your network configuration. Retrying..."
         start-sleep -seconds 5
@@ -373,15 +288,27 @@ function Deploy {
 
     Write-Verbose -Message "Checking if the script has already been started"
     Write-Output "Initializing script...`n"
-    Start-sleep -Seconds 3
+    Start-sleep -Seconds 2
     if ($NuGet -eq $true -and $PSGallery -eq $true -and $InstallPolicy -eq "Trusted") {
-        Write-Output "The script has detected that the settings were already modified. Importing the required module..."
+        Write-Output "The script has detected that the settings were already modified. Importing the PSWindowsUpdate module..."
         Start-Sleep -Seconds 2
-        Import-Module -Name PSWindowsUpdate
 
-        Write-Output "Module imported.`n"
+        try {
+            Import-Module -Name PSWindowsUpdate -EA Stop
+            Write-Output "Module imported.`n"
+            Get-Module -Name PSWindowsUpdate            
+        }
+        catch {
+            Write-Host -ForegroundColor Red $_.Exception.Message
+            Write-Warning 'PSWindowsUpdate not installed. Installing module...'
+            Install-Module -Name PSWindowsUpdate -Force
+            Write-Output 'Importing module...'
+            Import-Module -Name PSWindowsUpdate
+            Write-Host -ForegroundColor Green 'PSWindowsUpdate imported.'
+            Get-Module
+            start-sleep -seconds 2
+        } #try/catch
 
-        Get-Module -Name PSWindowsUpdate
 
         Write-Verbose -Message "Checks if the PC has updates to install by size that is greater than 0 MB."
         Write-Output "`nChecking for updates..."
@@ -389,27 +316,22 @@ function Deploy {
         
         switch($GWU) {
             { $GWU -gt 0 } {
-                Write-Output "`nYour PC has updates to install."
-                Start-sleep -Seconds 2
-                Clear-Host
+                Set-Message -Message 3
                 Stage2
                 Stage3
-                Stage4
             }
             default {
-                RevertSettingMessage
+                Set-Message -Message 2
                 Stage3
-                Stage4
             }
-        }
+        }#switch
     } else {
         Write-Verbose -Message "Initializing script for the first time"
         Clear-Host
         Stage1
-        #Stage2
+        Stage2
         Stage3
-        Stage4
-    }
+    } #if
 }
 
 Deploy
@@ -425,5 +347,6 @@ Write-Output "`nScript complete! This script will self-destruct in 3 seconds."
     Start-Sleep -Seconds 1
 }
 Write-Output "Script deleted!"
-#Remove-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat" -Force
-#Remove-Item -Path $MyInvocation.MyCommand.Source -Force
+Invoke-Expression 'cmd /c start powershell -Command {Write-Output "Uninstalling PSWindowsUpdate..." ; sleep 3 ; Uninstall-Module -Name PSWindowsUpdate}'
+Remove-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat" -Force
+Remove-Item -Path $MyInvocation.MyCommand.Source -Force
