@@ -23,7 +23,7 @@ Write-Host " ___) |  _ <    | | | |__| |___|  _  | |\  | |_| | |__| |_| | |_| | 
 Write-Host "|____/|_| \_\   |_| |_____\____|_| |_|_| \_|\___/|_____\___/ \____| |_|`n  " -ForegroundColor Green
 Write-Output "#######################################################################"
 Write-Output "#                  WINDOWS AUTOMATED DEPLOYMENT v1.5                  #"
-Write-Output "#                         WORK IN PROGRESS                            #"
+Write-Output "#                                                                     #"
 Write-Output "#                     DEVELOPED BY CHARLES THAI                       #"
 Write-Output "#######################################################################`n"
 Start-Sleep -seconds 3
@@ -117,9 +117,14 @@ function Set-PSGallery {
             }
         }
         {$Policy -contains 'Untrusted'} {
-            Write-Output 'PSGallery Installation Policy set to Untrusted'
-            Set-PSRepository -Name PSGallery -InstallationPolicy $Policy
-            Get-PSRepository -Name PSGallery | Format-Table Name,@{l="Source Location";e={$_.SourceLocation}},Trusted,Registered,InstallationPolicy
+            if ($PSGallery -contains 'Untrusted') {
+                Write-Output "PSGallery Installation Policy is already set to $Policy"
+                Get-PSRepository -Name PSGallery | Format-Table $RepositoryTable
+            } else {
+                Write-Output 'PSGallery Installation Policy set to Untrusted'
+                Set-PSRepository -Name PSGallery -InstallationPolicy $Policy
+                Get-PSRepository -Name PSGallery | Format-Table Name,@{l="Source Location";e={$_.SourceLocation}},Trusted,Registered,InstallationPolicy
+            }
         } 
         default {
             Write-Host -ForegroundColor Red "An error has occurred:"$_.Exception.Message
@@ -129,19 +134,20 @@ function Set-PSGallery {
 
 # Installs PSWindowsUpdate and imports the module.
 function Install-PSWindowsUpdate {
+    $WU = 'PSWindowsUpdate'
     Write-Output "Checking for PSWindowsUpdate module..."
     try {
-        $Module = (Get-InstalledModule -Name PSWindowsUpdate -EA Stop).name -contains 'PSWindowsUpdate'
+        $Module = (Get-InstalledModule -Name $WU -EA Stop).name -contains 'PSWindowsUpdate'
         if ($Module -eq $True) {
-            Write-Output 'PSWindowsUpdate is already installed. Importing Module...'
+            Write-Output "$WU is already installed. Importing Module..."
             Import-Module -Name PSWindowsUpdate
             Write-Host -ForegroundColor Green "`nImport complete!`n"
         }#if
     }
     catch {
-        Write-Warning 'PSWindowsUpdate is not installed. Installing PSWindowsUpdate...'
+        Write-Warning "$WU is not installed. Installing PSWindowsUpdate..."
         Install-Module -Name PSWindowsUpdate -Force
-        Write-Output 'PSWindowsUpdate installed. Importing module...'
+        Write-Output "$WU installed. Importing module..."
         Import-Module -Name PSWindowsUpdate
         Write-Host -ForegroundColor Green "`nImport complete!`n"
     } #try/catch
@@ -156,11 +162,15 @@ function Get-Update {
     if (($WUReboot -eq $true)) {
         Write-Output 'One or more updates require a reboot.'
         Start-sleep -Seconds 1
-        exit
+        break
+    } 
+
+    $GWU = (Get-WUList).Size
+    if ($GWU -gt 0) {
+        Stage 2
     } else {
         Set-Message -Message 2
-        start-sleep -Seconds 3
-    } #if
+    } #if/else
 } #function
 
 ################
@@ -256,9 +266,9 @@ function Stage3 {
     Write-Output "FINAL STAGE: DEPLOYMENT`n"
     Set-PSGallery -InstallationPolicy 'Untrusted'
     LocalAccountRemoval
-    CheckSysprep
 
-    # TODO: To be added.
+    # TODO: To be implemented.
+    #CheckSysprep
     #DeployKey
     #CheckWindowsLicense
     #OOBE
@@ -282,6 +292,7 @@ function Deploy {
     Start-sleep -Seconds 5
     Clear-Host
 
+    $WU = 'PSWindowsUpdate'
     $NuGet = (Get-PackageProvider |  Where-Object {$_.name -eq "Nuget"}).name -contains "NuGet"
     $PSGallery = (Get-PSRepository -name PSGallery).name -eq "PSGallery"
     $InstallPolicy = (Get-PSRepository -Name PSGallery | Where-Object {$_.InstallationPolicy -contains "Trusted"}).InstallationPolicy
@@ -294,16 +305,16 @@ function Deploy {
         Start-Sleep -Seconds 2
 
         try {
-            Import-Module -Name PSWindowsUpdate -EA Stop
+            Import-Module -Name $WU -EA Stop
             Write-Output "Module imported.`n"
-            Get-Module -Name PSWindowsUpdate            
+            Get-Module -Name $WU            
         }
         catch {
             Write-Host -ForegroundColor Red $_.Exception.Message
             Write-Warning 'PSWindowsUpdate not installed. Installing module...'
-            Install-Module -Name PSWindowsUpdate -Force
+            Install-Module -Name $WU -Force
             Write-Output 'Importing module...'
-            Import-Module -Name PSWindowsUpdate
+            Import-Module -Name $WU
             Write-Host -ForegroundColor Green 'PSWindowsUpdate imported.'
             Get-Module
             start-sleep -seconds 2
@@ -313,25 +324,21 @@ function Deploy {
         Write-Verbose -Message "Checks if the PC has updates to install by size that is greater than 0 MB."
         Write-Output "`nChecking for updates..."
         $GWU = (Get-WUList).Size
-        
-        switch($GWU) {
-            { $GWU -gt 0 } {
-                Set-Message -Message 3
-                Stage2
-                Stage3
-            }
-            default {
-                Set-Message -Message 2
-                Stage3
-            }
-        }#switch
+        if ($GWU -gt 0) {
+            Set-Message -Message 3
+            Stage2
+            Stage3
+        } else {
+            Set-Message -Message 2
+            Stage3
+        } #if/else
     } else {
         Write-Verbose -Message "Initializing script for the first time"
         Clear-Host
         Stage1
         Stage2
         Stage3
-    } #if
+    } #if/else
 }
 
 Deploy
