@@ -217,18 +217,19 @@ function Get-Sysprep {
     )
     $process = "Sysprep"
     try {
-        Write-Output "`nChecking for $process..."
-        Get-Process -Name $process -EA Stop
         if ($Terminate) {
-            Write-Output "Terminating $process...`n"
+            Write-Output "Terminating $process..."
             Start-sleep -Seconds 2
             Stop-Process -ProcessName $process -EA Stop
             Write-Host "$process terminated." -ForegroundColor Green
+        } else {
+            Set-Location $env:WINDIR/System32/Sysprep
+            Start-Process $process
         }
     }
     catch [System.Management.Automation.ActionPreferenceStopException] {
         if (!((Get-Process -Name $process -EA SilentlyContinue).name -eq "$process")) {
-            Write-Warning "$process doesn't exist"
+            Write-Warning "$process is not opened"
         } elseif ($Terminate) {
             Write-Warning 'This parameter requires elevated privileges'           
         }
@@ -236,10 +237,26 @@ function Get-Sysprep {
 } #function
 
 #TODO: Get KeyDeploy working
-function Deploy-RefurbKey {
-    Write-Output "This process will open KeyDeploy. If you're deploying a desktop, please power off the computer and connect it to the KeyDeploy server."
-    Write-Output "When you're ready, press ENTER to launch KeyDeploy."
-    Pause
+function Deploy-WindowsProductKeyRefurbishPC {
+    Write-Output "This process will launch KeyDeploy. If you are deploying a desktop, please power off the computer and connect it to the KeyDeploy server."
+    $Prompt = Read-Host 'Would you like to launch DeployKey? (Y/N) [Default is N]'
+    $Prompt
+    if ($prompt -match 'Y') {
+        Write-Output 'Launching KeyDeploy...'
+        Set-Location $env:WINDIR/MAFRO_SCRIPTS/ -EA SilentlyContinue
+    } else {
+        $Prompt2 = Read-Host 'Would you like to shut down this PC? (Y/N) [Default is N]'
+        $Prompt2
+        if ($prompt2 -match 'Y') {
+            Write-Output 'Shutting down PC...'
+            Stop-Computer -Force -WhatIf
+            break
+        } else {
+            Write-Output 'OK! Aborting script...'
+            start-sleep -seconds 2
+            break
+        }
+    }
     $process = "KeyDeploy"
     Write-Output "Launching $process..."
     Start-sleep -Seconds 5
@@ -290,7 +307,7 @@ function Stage3 {
     LocalAccountRemoval
 
     # TODO: To be implemented.
-    #Close-Sysprep
+    #Get-Sysprep -Terminate
     #DeployKey
     #CheckWindowsLicense
     #OOBE
