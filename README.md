@@ -1,3 +1,3 @@
-# Windows Auto Deployment Script
+# Microsoft Auto Deployment Script
 
-Windows Auto Deployment is an automated script that updates the deployed computer to the latest patches and retrieves the Microsoft Windows product key for refurbish PCs via Key Deploy.
+Microsoft Auto Deploy is an automated script that leverages PSWindowsUpdate to update the refurbish PCs and retrieves its new Microsoft product key via KeyDeploy.
