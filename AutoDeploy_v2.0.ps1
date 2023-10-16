@@ -2,9 +2,9 @@
 #                                                                                   #
 #                          WINDOWS AUTO DEPLOYMENT (v2.0)                           #
 #                                                                                   #
-#       Leverages Microsoft Update provider to install all missing updates          #
-#       using the PSWindowsUpdate module and deploy keys via Keydeploy.             #
-#       READY FOR USE IN PRODUCTION PCs.                                            #
+#       Leverages PSWindowsUpdate module to install drivers and updates             #
+#       and deploy Microsoft Windows product key for refurbish PCs                  #
+#       via Keydeploy. READY FOR USE IN PRODUCTION PCs.                             #
 #                                                                                   #
 #                           Developed by Charles Thai                               #
 #####################################################################################
@@ -136,21 +136,31 @@ function Install-PSWindowsUpdate {
     $WU = 'PSWindowsUpdate'
     Write-Output "Checking for PSWindowsUpdate..."
     try {
-        $Module = (Get-InstalledModule -Name $WU -EA Stop).name -contains 'PSWindowsUpdate'
+        $Module = (Get-InstalledModule -Name $WU -EA Continue).name -contains 'PSWindowsUpdate'
         if ($Module -eq $True) {
-            Write-Output "$WU is already installed. Importing Module..."
+            $Import = (Get-Module -Name PSWindowsUpdate).name -contains "PSWindowsUpdate"
+            Write-Output "$WU is already installed. Checking if module is imported..."
+            if ($Import -eq $true) {
+                Write-Output 'Module is already imported'
+                Get-Module -Name PSWindowsUpdate
+            } else {
+                Import-Module -Name PSWindowsUpdate
+                Write-Host -ForegroundColor Green "`nImport complete!`n"
+                Get-Module -Name PSWindowsUpdate
+            }
+        } else {
+            Write-Warning "$WU is not installed. Installing PSWindowsUpdate..."
+            Install-Module -Name PSWindowsUpdate -Force
+            Write-Output "$WU installed. Importing module..."
             Import-Module -Name PSWindowsUpdate
             Write-Host -ForegroundColor Green "`nImport complete!`n"
-        }#if
-    }
-    catch {
-        Write-Warning "$WU is not installed. Installing PSWindowsUpdate..."
-        Install-Module -Name PSWindowsUpdate -Force
-        Write-Output "$WU installed. Importing module..."
-        Import-Module -Name PSWindowsUpdate
-        Write-Host -ForegroundColor Green "`nImport complete!`n"
-    } #try/catch
-
+        }#if PSWindowsUpdate
+    } catch [System.Management.Automation.ActionPreferenceStopException] {
+        Write-Host "$_" -ForegroundColor Red
+    } catch {
+        Write-Warning "An error has occurred:"$_.Exception.Message
+        break
+    }#try/catch
 } #function
 
 function Get-Update {
@@ -166,7 +176,6 @@ function Get-Update {
         break
     }#if
     Set-Message -Message 2
-
 } #function
 
 ################
@@ -174,7 +183,7 @@ function Get-Update {
 ################
 
 # Removes the Refurb account.
-function LocalAccountRemoval {
+function RemoveRefurbAccount {
     $Account = "Refurb"
     Write-Output "Retrieving previously created local account: $account"
     Start-Sleep -Seconds 2
@@ -190,26 +199,6 @@ function LocalAccountRemoval {
     } #try/catch
 } #function
 
-# Checks if Sysprep is opened.
-# TODO: WORK ON KEYDEPLOY
-function Close-Sysprep {
-    $process = "Sysprep"
-    Write-Output "`nChecking for $process..."
-    try {
-        if ((Get-Process $process -EA Stop).ProcessName -contains $process) {
-            Write-Output "Terminating $process...`n"
-            Start-sleep -Seconds 3
-            Stop-Process -ProcessName $process
-            Write-Host "$process terminated." -ForegroundColor Green
-        }
-    }
-    catch {
-        Write-Warning "$process is not opened."
-        Write-Output "Skipping $process check"
-    } #try/catch
-} #function
-
-#TODO: Test this function
 function Get-Sysprep {
     [CmdletBinding()]
     Param(
@@ -231,25 +220,26 @@ function Get-Sysprep {
         if (!((Get-Process -Name $process -EA SilentlyContinue).name -eq "$process")) {
             Write-Warning "$process is not opened"
         } elseif ($Terminate) {
-            Write-Warning 'This parameter requires elevated privileges'           
+            Write-Warning 'This parameter requires an elevated Windows PowerShell console.'           
         }
     }#try/catch
 } #function
 
 #TODO: Get KeyDeploy working
-function Deploy-WindowsProductKeyRefurbishPC {
-    Write-Output "This process will launch KeyDeploy. If you are deploying a desktop, please power off the computer and connect it to the KeyDeploy server."
-    $Prompt = Read-Host 'Would you like to launch DeployKey? (Y/N) [Default is N]'
+function Deploy-WindowsProductKeyRefurbPC {
+    Write-Output "This process will launch KeyDeploy. If you are deploying a desktop, please press ENTER once followed by input 'Y' to power off the computer."
+    $Prompt = Read-Host 'Would you like to launch DeployKey? (Y/N) [Default is N if no input]'
     $Prompt
     if ($prompt -match 'Y') {
         Write-Output 'Launching KeyDeploy...'
         Set-Location $env:WINDIR/MAFRO_SCRIPTS/ -EA SilentlyContinue
     } else {
-        $Prompt2 = Read-Host 'Would you like to shut down this PC? (Y/N) [Default is N]'
+        $Prompt2 = Read-Host 'Would you like to shut down this PC? (Y/N) [Default is N if no input]'
         $Prompt2
         if ($prompt2 -match 'Y') {
             Write-Output 'Shutting down PC...'
-            Stop-Computer -Force -WhatIf
+            start-sleep -seconds 2
+            Stop-Computer -Force
             break
         } else {
             Write-Output 'OK! Aborting script...'
@@ -263,7 +253,7 @@ function Deploy-WindowsProductKeyRefurbishPC {
     Start-Process $process
     do {
         Write-Output "$process is open"
-        start-sleep -Seconds 1
+        start-sleep -Seconds 5
     } while ((Get-Process -name $process).name -contains "keydeploy") #dowhile
 } #function
 
@@ -304,7 +294,7 @@ function Stage2 {
 function Stage3 {
     Write-Output "FINAL STAGE: DEPLOYMENT`n"
     Set-PSGallery -InstallationPolicy 'Untrusted'
-    LocalAccountRemoval
+    RemoveRefurbAccount
 
     # TODO: To be implemented.
     #Get-Sysprep -Terminate
@@ -342,7 +332,6 @@ function Deploy {
     if ($NuGet -eq $true -and $PSGallery -eq $true -and $InstallPolicy -eq "Trusted") {
         Write-Output "The script has detected that the settings were already modified. Importing the PSWindowsUpdate module..."
         Start-Sleep -Seconds 2
-
         try {
             Import-Module -Name $WU -EA Stop
             Write-Output "Module imported.`n"
@@ -372,7 +361,7 @@ function Deploy {
             Stage3
         } #if/else
     } else {
-        Write-Verbose -Message "Initializing script for the first time"
+        Write-Verbose -Message "Initialize the script for the first time"
         Clear-Host
         Stage1
         Stage2
