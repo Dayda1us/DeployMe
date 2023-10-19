@@ -303,73 +303,86 @@ function Stage3 {
     #OOBE
 }
 
-function Deploy {
+function Initialize-AutoDeploy {
     [CmdletBinding()]
     Param()
+    
+    BEGIN {
+        Write-Verbose -Message "Checks for an Internet connectivity before running the script"
+        Write-Output "Checking for Internet connectivity...."
+        Start-sleep 2
 
-    Write-Verbose -Message "Checks for an Internet connectivity before running the script"
-    Write-Output "Checking for Internet connectivity...."
-    Start-sleep 3
+        # THIS TEST WILL ONLY WORK ON WINDOWS POWERSHELL v5.
+        while ((Test-Connection 3rtechnology.com -Count 1).ResponseTime -lt 0) {
+            Write-Warning -Message "No Internet connection. Please double check your network configuration. Retrying..."
+            start-sleep -seconds 5
+        } #while
 
-    # THIS TEST WILL ONLY WORK ON WINDOWS POWERSHELL v5.
-    while ((Test-Connection 3rtechnology.com -Count 1).ResponseTime -lt 0) {
-        Write-Warning -Message "No Internet connection. Please double check your network configuration. Retrying..."
-        start-sleep -seconds 5
-    } #while
+        Write-Host "Internet connection established!" -ForegroundColor Green
+        Start-sleep -Seconds 5
+        Clear-Host
+    } #BEGIN
 
-    Write-Host "Internet connection established!" -ForegroundColor Green
-    Start-sleep -Seconds 5
-    Clear-Host
-
-    $WU = 'PSWindowsUpdate'
-    $NuGet = (Get-PackageProvider |  Where-Object {$_.name -eq "Nuget"}).name -contains "NuGet"
-    $PSGallery = (Get-PSRepository -name PSGallery).name -eq "PSGallery"
-    $InstallPolicy = (Get-PSRepository -Name PSGallery | Where-Object {$_.InstallationPolicy -contains "Trusted"}).InstallationPolicy
-
-    Write-Verbose -Message "Checking if the script has already been started"
-    Write-Output "Initializing script...`n"
-    Start-sleep -Seconds 2
-    if ($NuGet -eq $true -and $PSGallery -eq $true -and $InstallPolicy -eq "Trusted") {
-        Write-Output "The script has detected that the settings were already modified. Importing the PSWindowsUpdate module..."
-        Start-Sleep -Seconds 2
-        try {
-            Import-Module -Name $WU -EA Stop
-            Write-Output "Module imported.`n"
-            Get-Module -Name $WU            
-        }
-        catch {
-            Write-Host -ForegroundColor Red $_.Exception.Message
-            Write-Warning 'PSWindowsUpdate not installed. Installing module...'
-            Install-Module -Name $WU -Force
-            Write-Output 'Importing module...'
-            Import-Module -Name $WU
-            Write-Host -ForegroundColor Green 'PSWindowsUpdate imported.'
-            Get-Module
-            start-sleep -seconds 2
-        } #try/catch
-
-
-        Write-Verbose -Message "Checks if the PC has updates to install by size that is greater than 0 MB."
-        Write-Output "`nChecking for updates..."
-        $GWU = (Get-WUList).Size
-        if ($GWU -gt 0) {
-            Set-Message -Message 3
+    PROCESS {
+        $WU = 'PSWindowsUpdate'
+        $NuGet = (Get-PackageProvider |  Where-Object {$_.name -eq "Nuget"}).name -contains "NuGet"
+        $PSGallery = (Get-PSRepository -name PSGallery).name -eq "PSGallery"
+        $InstallPolicy = (Get-PSRepository -Name PSGallery | Where-Object {$_.InstallationPolicy -contains "Trusted"}).InstallationPolicy
+    
+        Write-Verbose -Message "Checking if the script has already been started"
+        Write-Output "Initializing script...`n"
+        Start-sleep -Seconds 2
+        if ($NuGet -eq $true -and $PSGallery -eq $true -and $InstallPolicy -eq "Trusted") {
+            Write-Output "The script has detected that the settings were already modified. Importing the PSWindowsUpdate module..."
+            Start-Sleep -Seconds 2
+            try {
+                $Module = (Get-InstalledModule -Name $WU -EA Continue).name -contains $WU
+                if ($Module -eq $true) {
+                    Import-Module -Name $WU -EA Stop
+                    Write-Output "Module imported.`n"
+                    Get-Module -Name $WU    
+                } else {
+                    Write-Host -ForegroundColor Red $_.Exception.Message
+                    Write-Warning 'PSWindowsUpdate not installed. Installing module...'
+                    Install-Module -Name $WU -Force
+                    Write-Output 'Importing module...'
+                    Import-Module -Name $WU
+                    Write-Host -ForegroundColor Green 'PSWindowsUpdate imported.'
+                    Get-Module
+                    start-sleep -seconds 2
+                }
+            }
+            catch {
+                Write-Output "An error has occurred:" $_.Exception.Message
+                Write-Output 'Aborting script...'
+                Start-sleep -seconds 2
+                break
+            } #try/catch
+    
+            Write-Verbose -Message "Computer checking for updates."
+            Write-Output "`nChecking for updates..."
+            $GWU = (Get-WUList).Size
+            if ($GWU -gt 0) {
+                Set-Message -Message 3
+                Stage2
+                Stage3
+            } else {
+                Set-Message -Message 2
+                Stage3
+            } #if/else
+        } else {
+            Write-Verbose -Message "Initialize the script for the first time"
+            Clear-Host
+            Stage1
             Stage2
             Stage3
-        } else {
-            Set-Message -Message 2
-            Stage3
         } #if/else
-    } else {
-        Write-Verbose -Message "Initialize the script for the first time"
-        Clear-Host
-        Stage1
-        Stage2
-        Stage3
-    } #if/else
-}
+    } #PROCESS
+    
+    END {}
+}# Initialize-AutoDeploy
 
-Deploy
+Initialize-AutoDeploy
 
 # Delete the script once it is done.
 Write-Output "`nScript complete! This script will self-destruct in 3 seconds."
@@ -385,3 +398,4 @@ Write-Output "Script deleted!"
 Invoke-Expression 'cmd /c start powershell -Command {Write-Output "Uninstalling PSWindowsUpdate..." ; sleep 3 ; Uninstall-Module -Name PSWindowsUpdate}'
 Remove-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat" -Force
 Remove-Item -Path $MyInvocation.MyCommand.Source -Force
+
