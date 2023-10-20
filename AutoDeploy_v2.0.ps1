@@ -2,7 +2,7 @@
 #                                                                                   #
 #                          WINDOWS AUTO DEPLOYMENT (v2.0)                           #
 #                                                                                   #
-#       Leverages PSWindowsUpdate module to install drivers and updates             #
+#       Leverages PSWindowsUpdate to install drivers and updates                    #
 #       and deploy Microsoft Windows product key for refurbish PCs                  #
 #       via Keydeploy. READY FOR USE IN PRODUCTION PCs.                             #
 #                                                                                   #
@@ -183,21 +183,39 @@ function Get-Update {
 ################
 
 # Removes the Refurb account.
-function RemoveRefurbAccount {
-    $Account = "Refurb"
-    Write-Output "Retrieving previously created local account: $account"
-    Start-Sleep -Seconds 2
-    try {
-        Remove-LocalUser -Name $Account -EA Stop
-        Write-Host "$Account account removed!`n" -ForegroundColor Green
-        Get-LocalUser
-        Start-sleep -Seconds 2
-    } 
-    catch {
-        Write-Warning "$account account doesn't exist!"
-        "Skipping local account removal"
-    } #try/catch
-} #function
+function Remove-RefurbAccount {
+    [CmdletBinding()]
+    Param()
+
+    BEGIN {
+        $Account = 'Refurb'
+        Write-Output "Retrieving previously created local account: $account"
+        Start-Sleep -Seconds 2
+    }#BEGIN
+
+    PROCESS {
+        try {
+            Remove-LocalUser -Name $Account -EA Stop
+            Get-LocalUser
+            Start-sleep -Seconds 2
+        } 
+        catch [Microsoft.PowerShell.Commands.AccessDeniedException]  {
+            Write-Warning 'This cmdlet requires elevated privileges.'
+        } 
+        catch {
+            Write-Warning "$Account doesn't exist!"
+        }#try/catch
+
+    }#PROCESS
+
+    END {
+        if (((Get-LocalUser -Name $Account -EA SilentlyContinue).Name -contains $Account) -eq $false) {
+            Write-Host "$Account account removed!`n" -ForegroundColor Green
+        } else {
+            Write-Output 'Skipping local account removal'
+        }
+    }#END
+} #Remove-RefurbAccount
 
 function Get-Sysprep {
     [CmdletBinding()]
@@ -258,7 +276,9 @@ function Deploy-WindowsProductKeyRefurbPC {
 } #function
 
 #TODO: Check if Windows license is installed. Prompt the user if they would like to launch KeyDeploy.
-function CheckWindowsLicense {
+function Get-WindowsLicense {
+    [CmdletBinding()]
+    Param()
     Write-Output "Check for Windows activation status..."
     if (!(Get-CimInstance SoftwareLicensingProduct).LicenseStatus -eq 0) {
         Write-Host "Your Windows activation key is licensed!" -ForegroundColor Green
@@ -294,7 +314,7 @@ function Stage2 {
 function Stage3 {
     Write-Output "FINAL STAGE: DEPLOYMENT`n"
     Set-PSGallery -InstallationPolicy 'Untrusted'
-    RemoveRefurbAccount
+    Remove-RefurbAccount
 
     # TODO: To be implemented.
     #Get-Sysprep -Terminate
