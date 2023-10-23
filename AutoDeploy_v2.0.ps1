@@ -216,12 +216,11 @@ function Remove-RefurbAccount {
         Write-Output "Retrieving previously created local account: $account"
         Start-Sleep -Seconds 2
     }#BEGIN
-
     PROCESS {
         try {
             Remove-LocalUser -Name $Account -EA Stop
             Get-LocalUser
-            Start-sleep -Seconds 2
+            Write-Output "`n$Account removed!"
         } 
         catch [Microsoft.PowerShell.Commands.AccessDeniedException]  {
             Write-Warning 'This cmdlet requires elevated privileges.'
@@ -229,16 +228,8 @@ function Remove-RefurbAccount {
         catch {
             Write-Warning "$Account doesn't exist!"
         }#try/catch
-
     }#PROCESS
-
-    END {
-        if (((Get-LocalUser -Name $Account -EA SilentlyContinue).Name -contains $Account) -eq $false) {
-            Write-Host "$Account account removed!`n" -ForegroundColor Green
-        } else {
-            Write-Output 'Skipping local account removal'
-        }
-    }#END
+    END {}#END
 } #Remove-RefurbAccount
 
 # Opens/Terminates Sysprep
@@ -249,25 +240,25 @@ function Get-Sysprep {
     )
     BEGIN {
         $Process = "Sysprep"
-        $ProcessOpen = ((Get-Process -Name Sysprep -EA SilentlyContinue).ProcessName -eq $Process)
+        $ProcessOpen = ((Get-Process -Name $Process -EA SilentlyContinue).ProcessName -eq $Process)
     }#BEGIN
     PROCESS {
         try {
             if ($Terminate) {
-                Write-Output "Terminating $process..."
+                Write-Output "Terminating $Process..."
                 Start-sleep -Seconds 2
-                Stop-Process -ProcessName $process -EA Stop
+                Stop-Process -ProcessName $Process -EA Stop
                 Write-Host "$process terminated." -ForegroundColor Green
             } elseif ($ProcessOpen -eq $true) {
-                Write-Output "$process is already opened!"
+                Write-Output "$Process is already opened!"
             } else {
                 Set-Location $env:WINDIR/System32/Sysprep
-                Start-Process $process
+                Start-Process $Process
             }#if/else
         }#try
         catch [System.Management.Automation.ActionPreferenceStopException] {
-            if (!((Get-Process -Name $process -EA SilentlyContinue).name -eq "$process")) {
-                Write-Warning "$process is not opened"
+            if (!((Get-Process -Name $Process -EA SilentlyContinue).name -eq "$Process")) {
+                Write-Warning "$Process is not opened"
             } elseif ($Terminate) {
                 Write-Warning 'This parameter requires an elevated Windows PowerShell console.'           
             }#if/else
