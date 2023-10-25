@@ -22,9 +22,9 @@ Write-Host "  |_ \| |_) |   | | |  _|| |   | |_| |  \| | | | | |  | | | | |  _ \
 Write-Host " ___) |  _ <    | | | |__| |___|  _  | |\  | |_| | |__| |_| | |_| | | |  " -ForegroundColor Green
 Write-Host "|____/|_| \_\   |_| |_____\____|_| |_|_| \_|\___/|_____\___/ \____| |_|`n  " -ForegroundColor Green
 Write-Output "#######################################################################"
-Write-Output "#                  WINDOWS AUTOMATED DEPLOYMENT v2.0                  #"
+Write-Output "#               WINDOWS AUTOMATED DEPLOYMENT SCRIPT v2.0              #"
 Write-Output "#                                                                     #"
-Write-Output "#                     DEVELOPED BY CHARLES THAI                       #"
+Write-Output "#                      DEVELOPED BY CHARLES THAI                      #"
 Write-Output "#######################################################################`n"
 Start-Sleep -seconds 3
 Clear-Host
@@ -63,7 +63,7 @@ function Set-Message {
 }#function
 
 ###########################
-#  INSTALL REQ'D MODULES  #
+# INSTALL PSWINDOWSUPDATE #
 ###########################
 
 # Checks if NuGet is installed on the computer.
@@ -75,7 +75,6 @@ function Get-Nuget {
     if ($nuget -eq $true) {
         Write-Output "NuGet is already installed!`n"
         Get-PackageProvider
-        start-sleep -seconds 2
     } else {
         Write-Output "NuGet not installed. Installing NuGet..."
         Install-PackageProvider -name NuGet -Force -ForceBootstrap
@@ -178,6 +177,9 @@ function Install-PSWindowsUpdate {
     END {} #END
 } #function
 
+###########################
+#    CHECK FOR UPDATES    #
+###########################
 function Get-MicrosoftUpdate {
     [CmdletBinding()]
     Param()
@@ -273,7 +275,7 @@ function Deploy-WindowsRefurbKey {
     Param()
 
     BEGIN {
-        Write-Output "This process will launch KeyDeploy. If you are deploying a desktop, please press ENTER once followed by input 'Y' to shutdown the computer.`n"
+        Write-Output "This will launch KeyDeploy. If you are deploying a desktop, please press ENTER once followed by input 'Y' to shutdown the computer.`n"
         $AppPrompt = Read-Host 'Would you like to launch KeyDeploy now? (Y/N) [Default is N if no input]'
     } #BEGIN
     PROCESS {
@@ -291,7 +293,7 @@ function Deploy-WindowsRefurbKey {
             if ($ShutDownPrompt -match 'Y') {
                 Write-Output 'Shutting down PC...'
                 start-sleep -seconds 2
-                Stop-Computer -Force -WhatIf
+                Stop-Computer -Force
                 break
             }
         }
@@ -318,7 +320,7 @@ function Get-WindowsLicense {
 }#function
 
 # Sysprep the machine
-function OOBE {
+function Initialize-OOBE {
     Write-Output "`nPreparing Sysprep..."
     Start-sleep 5
     Set-Location $env:SystemRoot\System32\Sysprep
