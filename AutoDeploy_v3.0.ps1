@@ -23,7 +23,7 @@ Write-Host " ___) |  _ <    | | | |__| |___|  _  | |\  | |_| | |__| |_| | |_| | 
 Write-Host "|____/|_| \_\   |_| |_____\____|_| |_|_| \_|\___/|_____\___/ \____| |_|`n  " -ForegroundColor Green
 Write-Output "#######################################################################"
 Write-Output "#               WINDOWS AUTOMATED DEPLOYMENT SCRIPT v3.0              #"
-Write-Output "#                                                                     #"
+Write-Output "#                                 WIP                                 #"
 Write-Output "#                      DEVELOPED BY CHARLES THAI                      #"
 Write-Output "#######################################################################`n"
 Start-Sleep -seconds 3
@@ -171,35 +171,40 @@ function Install-PSWindowsUpdate {
     Param()
 
     BEGIN {
-        $WU = 'PSWindowsUpdate'
+        $PSWU = 'PSWindowsUpdate'
         Write-Output "Checking for PSWindowsUpdate..."
     }#BEGIN
 
     PROCESS {
         try {
-            $Module = (Get-InstalledModule -Name $WU -EA Continue).name -contains 'PSWindowsUpdate'
+            $Module = (Get-InstalledModule -Name $PSWU -EA Continue).name -contains 'PSWindowsUpdate'
             if ($Module -eq $True) {
                 $Import = (Get-Module -Name PSWindowsUpdate).name -contains "PSWindowsUpdate"
-                Write-Output "$WU is already installed. Checking if module is imported..."
+                Write-Output "$PSWU is already installed. Checking if module is imported..."
                 if ($Import -eq $true) {
                     Write-Output 'Module is already imported'
-                    Get-Module -Name PSWindowsUpdate
+                    Get-Module -Name $PSWU
                 } else {
-                    Import-Module -Name PSWindowsUpdate
+                    Import-Module -Name $PSWU
                     Write-Host -ForegroundColor Green "`nImport complete!`n"
-                    Get-Module -Name PSWindowsUpdate
+                    Get-Module -Name $PSWU
                 }
             } else {
-                Write-Warning "$WU is not installed. Installing PSWindowsUpdate..."
+                Write-Warning "$PSWU is not installed. Installing PSWindowsUpdate..."
                 Install-Module -Name PSWindowsUpdate -Force
-                Write-Output "$WU installed. Importing module..."
+                Write-Output "$PSWU installed. Importing module..."
                 Import-Module -Name PSWindowsUpdate
                 Write-Host -ForegroundColor Green "`nImport complete!`n"
             }#if PSWindowsUpdate
         } catch [System.Management.Automation.ActionPreferenceStopException] {
             Write-Host "$_" -ForegroundColor Red
+            Write-Output 'Aborting script...'
+            Start-Sleep -Seconds 5
+            break
         } catch {
             Write-Warning "An error has occurred:"$_.Exception.Message
+            Write-Output 'Aborting script...'
+            Start-Sleep -Seconds 5
             break
         }#try/catch
     }#PROCESS
@@ -218,16 +223,24 @@ function Get-MicrosoftUpdate {
         Write-Output "CHECKING FOR UPDATES"
     } #BEGIN
     PROCESS {
-        while ((Get-WUList).Size -gt 0) {
-            Get-WUList -AcceptAll -Install -AutoReboot | Format-List Title,KB,Size,Status,RebootRequired
-        } #while
-
-        $WUReboot = Get-WURebootStatus -Silent
-        if (($WUReboot -eq $true)) {
-            Write-Output 'One or more updates require a reboot.'
-            Start-sleep -Seconds 1
+        try {
+            while ((Get-WUList).Size -gt 0) {
+                Get-WUList -AcceptAll -Install -AutoReboot | Format-List Title,KB,Size,Status,RebootRequired
+            } #while
+    
+            $PSWUReboot = Get-WURebootStatus -Silent
+            if (($PSWUReboot -eq $true)) {
+                Write-Output 'One or more updates require a reboot.'
+                Start-sleep -Seconds 1
+                break
+            }#if
+        } catch [System.Management.Automation.CommandNotFoundException] {
+            Write-Warning "A fatal error has occurred. This may be caused by the PSWindowsUpdate module not being properly imported."
+            Write-Output 'Restarting script...'
+            Start-Sleep -Seconds -5
+            Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
             break
-        }#if
+        } #try/catch
     } #PROCESS
     END {
         Set-Message -Message 2
@@ -397,7 +410,7 @@ function Initialize-AutoDeploy {
     } #BEGIN
 
     PROCESS {
-        $WU = 'PSWindowsUpdate'
+        $PSWU = 'PSWindowsUpdate'
         $NuGet = (Get-PackageProvider |  Where-Object {$_.name -eq "Nuget"}).name -contains "NuGet"
         $PSGallery = (Get-PSRepository -name PSGallery).name -eq "PSGallery"
         $InstallPolicy = (Get-PSRepository -Name PSGallery | Where-Object {$_.InstallationPolicy -contains "Trusted"}).InstallationPolicy
@@ -409,17 +422,17 @@ function Initialize-AutoDeploy {
             Write-Output "The script has detected that the settings were already modified. Importing the PSWindowsUpdate module..."
             Start-Sleep -Seconds 2
             try {
-                $Module = (Get-InstalledModule -Name $WU -EA Continue).name -contains $WU
+                $Module = (Get-InstalledModule -Name $PSWU -EA Continue).name -contains $PSWU
                 if ($Module -eq $true) {
-                    Import-Module -Name $WU -EA Stop
+                    Import-Module -Name $PSWU -EA Stop
                     Write-Output "Module imported.`n"
-                    Get-Module -Name $WU    
+                    Get-Module -Name $PSWU    
                 } else {
                     Write-Host -ForegroundColor Red $_.Exception.Message
                     Write-Warning 'PSWindowsUpdate not installed. Installing module...'
-                    Install-Module -Name $WU -Force
+                    Install-Module -Name $PSWU -Force
                     Write-Output 'Importing module...'
-                    Import-Module -Name $WU
+                    Import-Module -Name $PSWU
                     Write-Host -ForegroundColor Green 'PSWindowsUpdate imported.'
                     Get-Module
                     start-sleep -seconds 2
