@@ -9,7 +9,7 @@ The features of the automated script are:
 - Ability to automatically Sysprep the machine
 <!-- Prerequisites -->
 ## Prerequisites
-The script requires administrative privileges as well as running Windows PowerShell v5 (or PowerShell v6) for this script to run. Failing to meet both these prerequistites will cause the script to not run until these conditions are met.
+The script requires administrative privileges as well as running Windows PowerShell v5 (or PowerShell v6) for this script to run. Failing to meet both prerequistites will cause the script to not run until they are met.
 
 ## Installation Guide
 The repository provided will come with three files included:
