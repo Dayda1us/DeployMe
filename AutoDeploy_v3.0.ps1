@@ -401,7 +401,7 @@ function Initialize-AutoDeploy {
     Param()
     
     BEGIN {
-        Write-Verbose -Message "Checks for an Internet connectivity before running the script"
+        Write-Verbose -Message "Running an Internet connectivity check for $((Get-CimInstance Win32_ComputerSystem).Name)"
         Write-Output "Checking for Internet connectivity...."
         Start-sleep 2
 
@@ -415,7 +415,7 @@ function Initialize-AutoDeploy {
         $PSGallery = (Get-PSRepository -name PSGallery).name -eq "PSGallery"
         $InstallPolicy = (Get-PSRepository -Name PSGallery | Where-Object {$_.InstallationPolicy -contains "Trusted"}).InstallationPolicy
     
-        Write-Verbose -Message "Checking if the script has already been started"
+        Write-Verbose -Message "Checking if this script was previously ran on $((Get-CimInstance Win32_ComputerSystem).Name)"
         Write-Output "Initializing script...`n"
         Start-sleep -Seconds 2
         if ($NuGet -eq $true -and $PSGallery -eq $true -and $InstallPolicy -eq "Trusted") {
@@ -465,7 +465,33 @@ function Initialize-AutoDeploy {
         } #if/else
     } #PROCESS
     
-    END {}
+    END {
+        if ((Test-Connection google.com -Count 1 -Quiet) -eq $false) {
+            Write-Verbose "[END] Internet connection dropped on $((Get-CimInstance Win32_ComputerSystem).Name)"
+            Write-Warning "$((Get-CimInstance Win32_ComputerSystem).Name) lost Internet connection."
+            $Prompt = Read-Host "Would you like to restart the script? (Y/N) [Default is N]"
+            if ($Prompt -match 'Y') {
+                try {
+                    Write-Output "Restarting script..."
+                    Start-sleep -Seconds 1
+                    Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
+                    break
+                } catch [System.Management.Automation.ActionPreferenceStopException] {
+                    Write-Host $_ -ForegroundColor Red
+                    Write-Warning 'An error occurred while trying to launch the script. Opening the Startup folder...'
+                    Start-sleep 2
+                    Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/"
+                    break
+                } #try/catch
+            } else {
+                Write-output 'You can restart the script manually by launching AutoDeployment.bat'
+                Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/"
+                Write-Warning 'Aborting script...'
+                Start-sleep 5
+                break
+            }#if/else $prompt
+        } #if/else Test-Connection
+    }
 }# Initialize-AutoDeploy
 
 Initialize-AutoDeploy
