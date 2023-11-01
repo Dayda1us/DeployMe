@@ -1,18 +1,20 @@
 <!-- Project Name and Description-->
-# 3R Technology Auto Deployment (AutoDeploy) Script
+# Auto Deployment (AutoDeploy) Script
 <!-- Brief Description -->
-A script used to automate the deployment of refurbished Microsoft Windows PCs.
+A script used to automate the deployment of Microsoft Windows PCs. This script was developed for my workplace (3R Technology) to automate the process of how I process PC deployments.
 <!-- Features -->
 ## Features
-The features of the automated script are:
-- Uses PSWindowsUpdate module
-- Ability to automatically Sysprep the machine
+Key features of AutoDeploy are:
+- Uses the PSWindowsUpdate module to retrieve all the latest updates and stable drivers.
+- Has an Internet connectivity test which test whether the PC has Internet connectivity before running the script.
 <!-- Prerequisites -->
 ## Prerequisites
-The script requires administrative privileges as well as running Windows PowerShell v5 (or PowerShell v6) for this script to run. Failing to meet both prerequistites will cause the script to not run until they are met.
+The script requires that you have an Internet connection (For PSWindowsUpdate), and the user has administrative privileges for the script to work. The script will not work if any of these conditions aren't met.
+
+It is generally recommended that you use this script on a reference image as the script is meant to be used for deploying on various PCs.
 
 ## Installation Guide
-The repository provided will come with three files included:
+The repository release comes with three files that are bundled into this script:
 - InstallAutoDeploy.bat
 - AutoDeployment.bat
 - AutoDeploy_vX.X.ps1 (X represents the version number)
