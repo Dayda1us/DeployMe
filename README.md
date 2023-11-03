@@ -12,6 +12,8 @@ The purpose of creating this script was to reduce the workload of manually deplo
 Key features of AutoDeploy are:
 - Uses the PSWindowsUpdate module to retrieve all the latest updates and stable drivers.
 - Has an Internet connectivity test which test whether the PC has Internet connectivity before running the script.
+- Can automatically select the timezone and sync the clock if the PC clock is out of sync.
+- 
 <!-- Prerequisites -->
 ## Prerequisites
 The script requires that you have an Internet connection (For PSWindowsUpdate), and the user has administrative privileges for the script to work. The script will not work if any of these conditions aren't met.
