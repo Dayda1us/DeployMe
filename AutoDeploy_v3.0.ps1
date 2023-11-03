@@ -202,7 +202,8 @@ function Install-PSWindowsUpdate {
             Start-Sleep -Seconds 5
             break
         } catch {
-            Write-Warning "An error has occurred:"$_.Exception.Message
+            Write-Warning "An error has occurred that could not be resolved"
+            Write-Host $_
             Write-Output 'Aborting script...'
             Start-Sleep -Seconds 5
             break
@@ -477,8 +478,9 @@ function Initialize-AutoDeploy {
                     Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
                     break
                 } catch [System.Management.Automation.ActionPreferenceStopException] {
+                    Write-Warning 'An error occurred that could not be resolved.'
                     Write-Host $_ -ForegroundColor Red
-                    Write-Warning 'An error occurred while trying to launch the script. Opening the Startup folder...'
+                    Write-Output 'Please restart the script manually.'
                     Start-sleep 2
                     Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/"
                     break
