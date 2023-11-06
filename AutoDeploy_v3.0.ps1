@@ -93,6 +93,92 @@ function Test-InternetConnection {
     } #END 
 }#Test-InternetConnection
 
+# Sync the date and timezone if the computer was set incorrectly.
+function Sync-Time {
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory)]
+        [String]$Timezone
+    )
+
+    BEGIN {
+        Write-Verbose "Retrieving the timezone and preferred timezone."
+        Write-Output 'Checking the current timezone...'
+        # Checks the current timezone of the computer
+        $CurrentTimeZone = (Get-TimeZone).Id
+
+        # The preferred timezone.
+        $PreferredTimeZone = (Get-TimeZone -ID $Timezone).Id
+
+    } #BEGIN
+    PROCESS {
+        # Set the preferred Timezone if current timezone is set incorrectly.
+        Write-Verbose "[BEGIN] Verifying the timezone for $ComputerName"
+        if ($CurrentTimeZone -eq $PreferredTimeZone) {
+            Write-Output "Timezone is already set to $PreferredTimeZone`n"
+            Get-TimeZone
+        }
+        else {
+            Set-TimeZone -ID $PreferredTimeZone
+            Write-Output "Timezone changed to $PreferredTimeZone`n"
+            Get-TimeZone
+        } #if/else
+
+        # Name of the Windows Time service
+        $WindowsTime = 'W32Time'
+
+        Write-Output "Syncing the local time..."
+        if ((Get-Service -Name $WindowsTime).Status -eq 'Running') {
+            Write-Output "$WindowsTime is already running. Syncing local time..."
+            Get-Service -Name W32Time
+            try {
+                Write-Verbose "[PRCOESS] Syncing the local time using 'w32tm /resync' on $ComputerName"
+                Write-Output 'Syncing local time...'
+                start-sleep -Seconds 2
+                Invoke-Command -ScriptBlock { w32tm.exe /resync } -ComputerName $((Get-CimInstance -ClassName Win32_ComputerSystem).Name) -EA Stop
+                Get-Date
+            } catch {
+                Write-Warning "An error has occurred that could not be resolved."
+                Write-Host $_ -ForegroundColor Red
+                break
+            } #try/catch
+
+        } else {
+                Write-Output "Starting $WindowsTime..."
+                Start-Sleep -seconds 2
+                try {
+                    Write-Verbose "[PROCESS] Starting $WindowsTime on $ComputerName"
+                    Start-Service -Name $WindowsTime -EA Stop
+                    # IF "W32Time" started successfully, run the "w32tm /resync" command.
+                    if ((Get-Service -Name $WindowsTime).Status -eq 'Started') {
+                        Write-Verbose "[PRCOESS] Syncing the local time using 'w32tm /resync' on $ComputerName"
+                        Write-Output 'Syncing local time...'
+                        start-sleep -Seconds 2
+                        Invoke-Command -ScriptBlock { w32tm.exe /resync } -ComputerName $((Get-CimInstance -ClassName Win32_ComputerSystem).Name) -EA Stop
+                        Get-Date
+                    } #if (Get-Service -Name $WindowsTime).Status -eq 'Started')
+                }
+                catch {
+                    Write-Warning "An error has occurred that could not be resolved."
+                    Write-Host $_ -ForegroundColor Red
+                    break
+                } #try/catch
+        } #if/else ((Get-Service -Name $WindowsTime).Status -eq 'Running')
+    } #PROCESS
+    END {
+        Write-Verbose "[END] Verifying that the timezone and today's date is synced"
+        $CurrentTimeZone = (Get-TimeZone).Id
+        if ($CurrentTimeZone -eq $PreferredTimeZone) {
+            Get-TimeZone
+            (Get-Date).DateTime
+            Write-Host "`nThe operation was performed successfully" -ForegroundColor Green
+        }
+        else {
+            Write-Warning 'The operation was not successful'
+        } #if/else ($CurrentTimeZone -eq $PreferredTimeZone)
+    } #END
+} #function Sync-Time
+
 ###########################
 # INSTALL PSWINDOWSUPDATE #
 ###########################
@@ -402,12 +488,16 @@ function Initialize-AutoDeploy {
     Param()
     
     BEGIN {
-        Write-Verbose -Message "Running an Internet connectivity check for $((Get-CimInstance Win32_ComputerSystem).Name)"
+        Write-Verbose -Message "[BEGIN] Running an Internet connectivity check for $((Get-CimInstance Win32_ComputerSystem).Name)"
         Write-Output "Checking for Internet connectivity...."
         Start-sleep 2
 
         # Test for internet connectivity before running the script.
         Test-InternetConnection
+
+        Write-Verbose -Message "[BEGIN] Verifying the timezone and date/time on $((Get-CimInstance Win32_ComputerSystem).Name)"
+        # Verify the date and time
+        Sync-Time -Timezone 'Pacific Standard Time'
     } #BEGIN
 
     PROCESS {
@@ -480,7 +570,7 @@ function Initialize-AutoDeploy {
                 } catch [System.Management.Automation.ActionPreferenceStopException] {
                     Write-Warning 'An error occurred that could not be resolved.'
                     Write-Host $_ -ForegroundColor Red
-                    Write-Output 'Please restart the script manually.'
+                    Write-Output 'Please start the script manually.'
                     Start-sleep 2
                     Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/"
                     break
