@@ -5,7 +5,7 @@ A script used to automate the deployment of Microsoft Windows PCs. This script w
 
 <!-- About this Project -->
 ## About this Project
-This script was created for the purpose to reduce the workload of manually deploying refurbished computers. 3R Technology deploys around 30 to 50 refurbished computers a day and the process of deployments were all done by having a user interact with each computers. The script automatically retrieves the updates from Microsoft, and stable hardware drivers automatically inserts a Windows Refurbish product key via Deploykey, thus significantly reduces the amount of man hours having to deploy if it were to be done by hand.
+This script was created for the purpose to reduce the workload of having to manually deploy refurbished computers. 3R Technology deploys around 30 to 50 refurbished computers a day and the process of deployments were all done by having a user interact with each computers. The script automatically retrieves the updates from Microsoft, and stable hardware drivers automatically inserts a Windows Refurbish product key via Deploykey, thus significantly reduces the amount of man hours having to deploy if it were to be done by hand.
 
 <!-- Features -->
 ## Features
@@ -16,8 +16,6 @@ This script was created for the purpose to reduce the workload of manually deplo
 <!-- Prerequisites -->
 ## Prerequisites
 You must have an Internet connection for this script to work due to PSWindowsUpdate pulling updates from Microsoft. The script also be run with administrative privileges.
-
-This script was designed to be installed into an offline reference image.
 <!-- Getting Started -->
 ## Getting Started
 To get started, download the following files listed in the release repository:
