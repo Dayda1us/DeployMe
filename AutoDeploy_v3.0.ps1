@@ -67,26 +67,22 @@ function Test-InternetConnection {
     Param()
 
     BEGIN {
-        # Grabs the current version of Powershell by its Major version number.
-        $PSVersion = (Get-Host | Select-Object Version).Version
-        $CurrentPSVersion = $PSVersion.Major
+        Write-Verbose -Message "[BEGIN] Running an Internet connectivity check for $((Get-CimInstance Win32_ComputerSystem).Name)"
+        Write-Output "Checking for Internet connectivity...."
     } #BEGIN
     PROCESS {
-        # The first condition for Windows PowerShell v5 or below.
-        if ($CurrentPSVersion -lt 6) {
-            while ((Test-Connection 3rtechnology.com -Count 1 -EA SilentlyContinue).ResponseTime -lt 0) {
-                Write-Warning -Message "No Internet connection. Please double check your network configuration. Retrying..."
-                start-sleep -seconds 5
-            } #while
-        # The second condition for PowerShell (NOT Windows PowerShell) v6 or later.
-        } elseif ($CurrentPSVersion -gt 5) {
-            while ((Test-Connection 3rtechnology.com -Count 1 -EA SilentlyContinue).Latency -lt 0) {
-                Write-Warning -Message "No Internet connection. Please double check your network configuration. Retrying..."
-                start-sleep -seconds 5
-            }
-        } #if/else
+        # Company Website
+        $TestWebsite = "3RTechnology.com"
+
+        # If there is no Internet connection, display an error until an Internet connection is found.
+        Write-Verbose -Message "[PROCESS] Checking if $((Get-CimInstance -ClassName Win32_ComputerSystem).Name) can ping to $TestWebsite"
+        while (-not((Test-Connection $TestWebsite -Quiet -Count 1) -eq $true)) {
+            Write-Warning "No Internet connection found. Please double check your network configuration. Retrying..."
+            Start-Sleep -Seconds 5
+        }
     }#PROCESS
     END {
+        Write-Verbose -Message "[END] $((Get-CimInstance -ClassName Win32_ComputerSystem).Name) successfully pings $TestWebsite"
         Write-Host "Internet connection established!" -ForegroundColor Green
         Start-sleep -Seconds 5
         Clear-Host
@@ -206,7 +202,8 @@ function Get-Nuget {
 function Set-PSGallery {
     [CmdletBinding()]
     Param(
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory=$true,
+         HelpMessage = "Set PSGallery to either 'Trusted' or 'Untrusted'")]
         [ValidateSet('Trusted','Untrusted')]
         [String]$InstallationPolicy
     )
@@ -488,10 +485,6 @@ function Initialize-AutoDeploy {
     Param()
     
     BEGIN {
-        Write-Verbose -Message "[BEGIN] Running an Internet connectivity check for $((Get-CimInstance Win32_ComputerSystem).Name)"
-        Write-Output "Checking for Internet connectivity...."
-        Start-sleep 2
-
         # Test for internet connectivity before running the script.
         Test-InternetConnection
 
