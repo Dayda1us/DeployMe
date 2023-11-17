@@ -13,8 +13,6 @@
 # This script must be started with elevated user rights.
 #Requires -RunAsAdministrator
 
-$newline = Write-Output "`n"
-
 Clear-Host
 Write-Host " _____ ____    _____ _____ ____ _   _ _   _  ___  _     ___   ______   __" -ForegroundColor Green
 Write-Host "|___ /|  _ \  |_   _| ____/ ___| | | | \ | |/ _ \| |   / _ \ / ___\ \ / /" -ForegroundColor Green
@@ -23,7 +21,7 @@ Write-Host " ___) |  _ <    | | | |__| |___|  _  | |\  | |_| | |__| |_| | |_| | 
 Write-Host "|____/|_| \_\   |_| |_____\____|_| |_|_| \_|\___/|_____\___/ \____| |_|`n  " -ForegroundColor Green
 Write-Output "#######################################################################"
 Write-Output "#               WINDOWS AUTOMATED DEPLOYMENT SCRIPT v2.5              #"
-Write-Output "#                                BETA                                 #"
+Write-Output "#                                                                     #"
 Write-Output "#                      DEVELOPED BY CHARLES THAI                      #"
 Write-Output "#######################################################################`n"
 Start-Sleep -seconds 3
@@ -32,35 +30,35 @@ Clear-Host
 function Set-Message {
     [CmdletBinding()]
     Param(
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory = $true)]
         [int]$Message
     )
 
     $SelectedNumber = $Message
-    [int[]]$numbers = (1,2,3)
+    [int[]]$numbers = (1, 2, 3)
 
     switch ($Number) {
-        {$SelectedNumber -eq $numbers[0]} {
+        { $SelectedNumber -eq $numbers[0] } {
             Write-Output "You are now ready to install updates"
             Start-Sleep -Seconds 5
             Clear-Host
         }
-        {$SelectedNumber -eq $numbers[1]} {
+        { $SelectedNumber -eq $numbers[1] } {
             Write-Host "`nYour PC is up to date" -ForegroundColor Green
             Write-Output "Preparing for deployment..."
             Start-Sleep -seconds 5
             Clear-Host
         }
-        {$SelectedNumber -eq $numbers[2]} {
+        { $SelectedNumber -eq $numbers[2] } {
             Write-Output "`nYour PC has updates to install."
             Start-sleep -Seconds 2
             Clear-Host
         }
         default {
-            Write-Warning "Invalid number. Valid numbers are $numbers"
+            Write-Warning "Invalid message number. Valid numbers are $numbers"
         }
     } #switch
-}#function
+}#function Set-Message
 
 function Test-InternetConnection {
     [CmdletBinding()]
@@ -87,7 +85,7 @@ function Test-InternetConnection {
         Start-sleep -Seconds 5
         Clear-Host
     } #END 
-}#Test-InternetConnection
+}#function Test-InternetConnection
 
 # Sync the date and timezone if the computer was set incorrectly.
 function Sync-Time {
@@ -126,56 +124,63 @@ function Sync-Time {
         # Name of the Windows Time service
         $WindowsTime = 'W32Time'
 
-        Write-Output "Syncing the local time..."
+        Write-Output "Checking if $WindowsTime is running..."
+        start-sleep 2
         if ((Get-Service -Name $WindowsTime).Status -eq 'Running') {
             Write-Output "$WindowsTime is already running. Syncing local time..."
             Get-Service -Name W32Time
             try {
                 Write-Verbose "[PROCESS] Syncing the local time using 'w32tm /resync' on $ComputerName"
-                Write-Output 'Syncing local time...'
+                Write-Output "Syncing local time on $ComputerName"
                 start-sleep -Seconds 2
                 Invoke-Command -ScriptBlock { w32tm.exe /resync } -EA Stop
                 Get-Date
-            } catch {
+            }
+            catch {
                 Write-Warning "An error has occurred that could not be resolved."
                 Write-Host $_ -ForegroundColor Red
+
+                # Restart the script if an error occurs
+                Write-Output 'Restarting script...'
                 Start-Sleep -Seconds 5
+                Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
                 break
             } #try/catch
 
-        } else {
-                Write-Output "Starting $WindowsTime..."
-                Start-Sleep -seconds 2
-                try {
-                    Write-Verbose "[PROCESS] Starting $WindowsTime on $ComputerName"
-                    Start-Service -Name $WindowsTime -EA Stop
-                    # IF "W32Time" started successfully, run the "w32tm /resync" command.
-                    if ((Get-Service -Name $WindowsTime).Status -eq 'Running') {
-                        Write-Verbose "[PROCESS] Syncing the local time using 'w32tm /resync' on $ComputerName"
-                        Write-Output 'Syncing local time...'
-                        start-sleep -Seconds 2
-                        Invoke-Command -ScriptBlock { w32tm.exe /resync } -EA Stop
-                    } #if (Get-Service -Name $WindowsTime).Status -eq 'Started')
-                }
-                catch {
-                    Write-Warning "An error has occurred that could not be resolved."
-                    Write-Host $_ -ForegroundColor Red
-                    Start-Sleep -Seconds 5
-                    break
-                } #try/catch
+        }
+        else {
+            Write-Output "Starting $WindowsTime..."
+            Start-Sleep -seconds 2
+            try {
+                Write-Verbose "[PROCESS] Starting $WindowsTime on $ComputerName"
+                Start-Service -Name $WindowsTime -EA Stop
+                # If "W32Time" started successfully, run the "w32tm /resync" command.
+                if ((Get-Service -Name $WindowsTime).Status -eq 'Running') {
+                    Write-Verbose "[PROCESS] Syncing the local time using 'w32tm /resync' on $ComputerName"
+                    Write-Output "Syncing local time on $ComputerName"
+                    start-sleep -Seconds 2
+                    Invoke-Command -ScriptBlock { w32tm.exe /resync } -EA Stop
+                } #if (Get-Service -Name $WindowsTime).Status -eq 'Started')
+            }
+            catch {
+                Write-Warning "An error has occurred that could not be resolved."
+                Write-Host $_ -ForegroundColor Red
+
+                # Restart the script if an error occurs
+                Write-Output 'Restarting script...'
+                Start-Sleep -Seconds 5
+                Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
+                break
+            } #try/catch
         } #if/else ((Get-Service -Name $WindowsTime).Status -eq 'Running')
     } #PROCESS
     END {
-        Write-Verbose "[END] Verifying that the timezone and today's date is synced"
+        Write-Verbose "[END] Verifying that the timezone and today's date is synced."
         $CurrentTimeZone = (Get-TimeZone).Id
         if ($CurrentTimeZone -eq $PreferredTimeZone) {
-            Get-TimeZone
-            (Get-Date).DateTime
-            Write-Host "`nThe operation was performed successfully" -ForegroundColor Green
-        }
-        else {
-            Write-Warning 'The operation was not successful'
-        } #if/else ($CurrentTimeZone -eq $PreferredTimeZone)
+            Write-Host 'The operation was successful.' -ForegroundColor Green
+            start-sleep 2
+        } #if ($CurrentTimeZone -eq $PreferredTimeZone)
     } #END
 } #function Sync-Time
 
@@ -185,30 +190,60 @@ function Sync-Time {
 
 # Checks if NuGet is installed on the computer.
 function Get-Nuget {
-    $nuget = (Get-PackageProvider |  Where-Object {$_.name -eq "Nuget"}).name -contains "NuGet"
-    Write-Output "Checking for NuGet..."
+    [CmdletBinding()]
+    Param()
 
-    if ($nuget -eq $true) {
-        Write-Output "NuGet is already installed!`n"
-        Get-PackageProvider
-    } else {
-        Write-Output "NuGet not installed. Installing NuGet..."
-        Install-PackageProvider -name NuGet -Force -ForceBootstrap
+    BEGIN {
+        Write-Verbose -Message "Checking if NuGet package provider is installed on $((Get-Ciminstance -ClassName Win32_ComputerSystem).Name)"
+        $NuGet = (Get-PackageProvider |  Where-Object { $_.name -eq "Nuget" }).name -contains "NuGet"
+        Write-Output "Checking for NuGet..."
+    } #BEGIN
 
-        Write-Output "`nNuGet Installed. Importing NuGet..."
-        Import-PackageProvider -name Nuget
-        Write-Output "NuGet Imported!`n"
-    } #if
-    $newline
-} #function
+    PROCESS {
+        if ($NuGet -eq $false) {
+            Write-Warning -Message "NuGet is not installed."
+            Write-Output 'Installing NuGet...'
+            start-sleep -Seconds 5
+            try {
+                Write-Verbose -Message "Installing NuGet on $((Get-Ciminstance -ClassName Win32_ComputerSystem).Name)"
+                Install-PackageProvider -name NuGet -Force -ForceBootstrap -EA Stop
+                Write-Output "`nNuGet Installed. Importing NuGet..."
+                start-sleep -Seconds 2
+                Import-PackageProvider -name Nuget
+            }
+            catch [System.Management.Automation.ActionPreferenceStopException] {
+                Write-Warning 'An error has occurred that could not be resolved.'
+                Write-Host $_.Exception.Message
+                
+                # Restart the script if this cmdlet fails.
+                Write-Warning 'Restarting script'
+                start-sleep 5
+                Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
+                break
+            } #try/catch
+        }
+        else {
+            Write-Output 'NuGet is already installed on this PC. Importing NuGet...'
+            Import-PackageProvider -name Nuget
+        }#if/else ($NuGet -eq $false)
+
+    } #PROCESS
+    END {
+        Write-Verbose -Message "Verify if NuGet is installed on $((Get-Ciminstance -ClassName Win32_ComputerSystem).Name)"
+        $NuGet = (Get-PackageProvider |  Where-Object { $_.name -eq "Nuget" }).name -contains "NuGet"
+        if ($NuGet -eq $true) {
+            Write-Output "`nNuGet Imported!"
+        } #if ($NuGet -eq $true)
+    } #END
+} #function Get-Nuget
 
 # Set PSGallery installation to either trusted or untrusted.
 function Set-PSGallery {
     [CmdletBinding()]
     Param(
-        [Parameter(Mandatory=$true,
-         HelpMessage = "Set PSGallery to either 'Trusted' or 'Untrusted'")]
-        [ValidateSet('Trusted','Untrusted')]
+        [Parameter(Mandatory = $true,
+            HelpMessage = "Set PSGallery to either 'Trusted' or 'Untrusted'")]
+        [ValidateSet('Trusted', 'Untrusted')]
         [String]$InstallationPolicy
     )
 
@@ -216,41 +251,44 @@ function Set-PSGallery {
         $Policy = $InstallationPolicy
         $PSGallery = (Get-PSRepository -Name PSGallery).InstallationPolicy
         $RepositoryTable = @('Name', `
-                        @{l="Source Location";e={$_.SourceLocation}}, `
-                        'Trusted', `
-                        'Registered', `
-                        'InstallationPolicy')
+            @{l = "Source Location"; e = { $_.SourceLocation } }, `
+                'Trusted', `
+                'Registered', `
+                'InstallationPolicy')
 
     } #BEGIN
     PROCESS {
         switch ($InstallPolicy) {
-            {$Policy -contains 'Trusted'} {
+            { $Policy -contains 'Trusted' } {
                 if ($PSGallery -contains 'Trusted') {
                     Write-Output "PSGallery Installation Policy is already set to $Policy"
                     Get-PSRepository -Name PSGallery | Format-Table $RepositoryTable
-                } Else {
+                }
+                Else {
                     Write-Output 'PSGallery Installation Policy set to Trusted'
                     Set-PSRepository -Name PSGallery -InstallationPolicy $Policy
                     Get-PSRepository -Name PSGallery | Format-Table $RepositoryTable
                 }
             }
-            {$Policy -contains 'Untrusted'} {
+            { $Policy -contains 'Untrusted' } {
                 if ($PSGallery -contains 'Untrusted') {
                     Write-Output "PSGallery Installation Policy is already set to $Policy"
                     Get-PSRepository -Name PSGallery | Format-Table $RepositoryTable
-                } else {
+                }
+                else {
                     Write-Output 'PSGallery Installation Policy set to Untrusted'
                     Set-PSRepository -Name PSGallery -InstallationPolicy $Policy
-                    Get-PSRepository -Name PSGallery | Format-Table Name,@{l="Source Location";e={$_.SourceLocation}},Trusted,Registered,InstallationPolicy
+                    Get-PSRepository -Name PSGallery | Format-Table Name, @{l = "Source Location"; e = { $_.SourceLocation } }, Trusted, Registered, InstallationPolicy
                 }
             } 
             default {
-                Write-Host -ForegroundColor Red "An error has occurred:"$_.Exception.Message
+                Write-Warning "An error has occurred that could not be resolved."
+                Write-Host $_.Exception.Message
             }
         }#switch
     } #PROCESS
     END {} #END
-} #function
+} #function Set-PSGallery
 
 # Installs PSWindowsUpdate and imports the module.
 function Install-PSWindowsUpdate {
@@ -271,34 +309,40 @@ function Install-PSWindowsUpdate {
                 if ($Import -eq $true) {
                     Write-Output 'Module is already imported'
                     Get-Module -Name $PSWU
-                } else {
+                }
+                else {
                     Import-Module -Name $PSWU
                     Write-Host -ForegroundColor Green "`nImport complete!`n"
                     Get-Module -Name $PSWU
                 }
-            } else {
+            }
+            else {
                 Write-Warning "$PSWU is not installed. Installing PSWindowsUpdate..."
                 Install-Module -Name PSWindowsUpdate -Force
                 Write-Output "$PSWU installed. Importing module..."
                 Import-Module -Name PSWindowsUpdate
                 Write-Host -ForegroundColor Green "`nImport complete!`n"
             }#if PSWindowsUpdate
-        } catch [System.Management.Automation.ActionPreferenceStopException] {
+        }
+        catch [System.Management.Automation.ActionPreferenceStopException] {
             Write-Host "$_" -ForegroundColor Red
-            Write-Output 'Aborting script...'
-            Start-Sleep -Seconds 5
+            Write-Warning 'Restarting script'
+            start-sleep 5
+            Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
             break
-        } catch {
+        }
+        catch {
             Write-Warning "An error has occurred that could not be resolved"
             Write-Host $_
-            Write-Output 'Aborting script...'
-            Start-Sleep -Seconds 5
+            Write-Warning 'Restarting script'
+            start-sleep 5
+            Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
             break
         }#try/catch
     }#PROCESS
 
     END {} #END
-} #function
+} #function Install-PSWindowsUpdate
 
 ###########################
 #    CHECK FOR UPDATES    #
@@ -313,7 +357,7 @@ function Get-MicrosoftUpdate {
     PROCESS {
         try {
             while ((Get-WUList).Size -gt 0) {
-                Get-WUList -AcceptAll -Install -AutoReboot | Format-List Title,KB,Size,Status,RebootRequired
+                Get-WUList -AcceptAll -Install -AutoReboot | Format-List Title, KB, Size, Status, RebootRequired
             } #while
     
             $PSWUReboot = Get-WURebootStatus -Silent
@@ -322,9 +366,11 @@ function Get-MicrosoftUpdate {
                 Start-sleep -Seconds 1
                 break
             }#if
-        } catch [System.Management.Automation.CommandNotFoundException] {
+        }
+        catch [System.Management.Automation.CommandNotFoundException] {
             Write-Warning "A fatal error has occurred. This may be caused by the PSWindowsUpdate module not being properly imported."
-            Write-Output 'Restarting script...'
+            Write-Host $_.Exception.Message
+            Write-Output "`nRestarting script..."
             Start-Sleep -Seconds -5
             Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
             break
@@ -333,7 +379,7 @@ function Get-MicrosoftUpdate {
     END {
         Set-Message -Message 2
     } #END
-} #function
+} #function Get-MicrosoftUpdate
 
 ################
 #  DEPLOYMENT  #
@@ -354,7 +400,7 @@ function Remove-RefurbAccount {
             Get-LocalUser
             Write-Output "`n$Account removed!"
         } 
-        catch [Microsoft.PowerShell.Commands.AccessDeniedException]  {
+        catch [Microsoft.PowerShell.Commands.AccessDeniedException] {
             Write-Warning 'This cmdlet requires elevated privileges.'
         } 
         catch {
@@ -363,7 +409,7 @@ function Remove-RefurbAccount {
         }#try/catch
     }#PROCESS
     END {}#END
-} #Remove-RefurbAccount
+} #function Remove-RefurbAccount
 
 # Opens/Terminates Sysprep
 function Get-Sysprep {
@@ -382,9 +428,11 @@ function Get-Sysprep {
                 Start-sleep -Seconds 2
                 Stop-Process -ProcessName $Process -EA Stop
                 Write-Host "$process terminated." -ForegroundColor Green
-            } elseif ($ProcessOpen -eq $true) {
+            }
+            elseif ($ProcessOpen -eq $true) {
                 Write-Output "$Process is already opened!"
-            } else {
+            }
+            else {
                 Set-Location $env:WINDIR/System32/Sysprep
                 Start-Process $Process
             }#if/else
@@ -392,63 +440,14 @@ function Get-Sysprep {
         catch [System.Management.Automation.ActionPreferenceStopException] {
             if (!((Get-Process -Name $Process -EA SilentlyContinue).name -eq "$Process")) {
                 Write-Warning "$Process is not opened"
-            } elseif ($Terminate) {
+            }
+            elseif ($Terminate) {
                 Write-Warning 'This parameter requires an elevated Windows PowerShell console.'           
             }#if/else
         }#catch
     }#PROCESS
-    END{} #END
-} #function
-
-#TODO: Get KeyDeploy working
-function Deploy-WindowsRefurbKey {
-    [CmdletBinding()]
-    Param()
-
-    BEGIN {
-        Write-Output "You are about to launch KeyDeploy. If you are deploying a desktop, please press ENTER once followed by input 'Y' to shutdown the computer.`n"
-        $AppPrompt = Read-Host 'Would you like to launch KeyDeploy now? (Y/N) [Default is N if no input]'
-    } #BEGIN
-    PROCESS {
-        if ($AppPrompt -match 'Y') {
-            #Set-Location $env:WINDIR/MAFRO_SCRIPTS/ -EA SilentlyContinue
-            $Process = "KeyDeploy"
-            Write-Output "Launching $process..."
-            Start-Process $Process
-            do {
-                Write-Output "$Process is open"
-                start-sleep -Seconds 5
-            } while ((Get-Process -name $Process -EA SilentlyContinue).name -contains $Process) #dowhile
-        } else {
-            $ShutDownPrompt = Read-Host 'Would you like to shut down this PC? (Y/N) [Default is N if no input]'
-            if ($ShutDownPrompt -match 'Y') {
-                Write-Output 'Shutting down PC...'
-                start-sleep -seconds 2
-                Stop-Computer -Force
-                break
-            }
-        }
-    } #PROCESS
-    END{
-        if ($ShutDownPrompt -match 'N' -or -not($ShutDownPrompt)) {
-            Write-Output 'OK! Skipping product key deployment'
-        }
-    } #END
-} #function
-
-#TODO: Check if Windows license is installed. Prompt the user if they would like to launch KeyDeploy.
-function Get-WindowsLicense {
-    [CmdletBinding()]
-    Param()
-    Write-Output "Check for Windows activation status..."
-    if (!(Get-CimInstance SoftwareLicensingProduct).LicenseStatus -eq 0) {
-        Write-Host "Your Windows activation key is licensed!" -ForegroundColor Green
-    } else {
-        Write-Host "Your Windows activation key is not licensed!" -ForegroundColor Red
-        start-sleep -Seconds 2
-        break
-    }#if
-}#function
+    END {} #END
+} #function Get-Sysprep
 
 # Sysprep the machine
 function Initialize-OOBE {
@@ -457,7 +456,7 @@ function Initialize-OOBE {
     Set-Location $env:SystemRoot\System32\Sysprep
     .\sysprep.exe /oobe
     shutdown.exe /s /t 10
-}
+} #function Initialize-OOBE
 
 function Stage1 {
     Write-Output "STAGE 1: RETRIEVING THE REQUIRED MODULE`n"
@@ -465,12 +464,12 @@ function Stage1 {
     Set-PSGallery -InstallationPolicy 'Trusted'
     Install-PSWindowsUpdate
     Set-Message -Message 1
-} #function
+} #function Stage1
 
 function Stage2 {
     Write-Output "STAGE 2: UPDATES`n"
     Get-MicrosoftUpdate
-} #function
+} #function Stage2
 
 function Stage3 {
     Write-Output "FINAL STAGE: DEPLOYMENT`n"
@@ -478,11 +477,9 @@ function Stage3 {
     Remove-RefurbAccount
 
     # TODO: To be implemented.
-    #Get-Sysprep -Terminate
-    #Deploy-WindowsRefurbKey
+    #Register-MicrosoftWindowsProductKey
     #CheckWindowsLicense
-    #OOBE
-}
+} #function Stage3
 
 function Initialize-AutoDeploy {
     [CmdletBinding()]
@@ -499,9 +496,9 @@ function Initialize-AutoDeploy {
 
     PROCESS {
         $PSWU = 'PSWindowsUpdate'
-        $NuGet = (Get-PackageProvider |  Where-Object {$_.name -eq "Nuget"}).name -contains "NuGet"
+        $NuGet = (Get-PackageProvider |  Where-Object { $_.name -eq "Nuget" }).name -contains "NuGet"
         $PSGallery = (Get-PSRepository -name PSGallery).name -eq "PSGallery"
-        $InstallPolicy = (Get-PSRepository -Name PSGallery | Where-Object {$_.InstallationPolicy -contains "Trusted"}).InstallationPolicy
+        $InstallPolicy = (Get-PSRepository -Name PSGallery | Where-Object { $_.InstallationPolicy -contains "Trusted" }).InstallationPolicy
     
         Write-Verbose -Message "Checking if this script was previously ran on $((Get-CimInstance Win32_ComputerSystem).Name)"
         Write-Output "Initializing script...`n"
@@ -515,7 +512,8 @@ function Initialize-AutoDeploy {
                     Import-Module -Name $PSWU -EA Stop
                     Write-Output "Module imported.`n"
                     Get-Module -Name $PSWU    
-                } else {
+                }
+                else {
                     Write-Host -ForegroundColor Red $_.Exception.Message
                     Write-Warning 'PSWindowsUpdate not installed. Installing module...'
                     Install-Module -Name $PSWU -Force
@@ -540,11 +538,13 @@ function Initialize-AutoDeploy {
                 Set-Message -Message 3
                 Stage2
                 Stage3
-            } else {
+            }
+            else {
                 Set-Message -Message 2
                 Stage3
             }#if/else
-        } else {
+        }
+        else {
             Write-Verbose -Message "Initialize the script for the first time"
             Clear-Host
             Stage1
@@ -564,7 +564,8 @@ function Initialize-AutoDeploy {
                     Start-sleep -Seconds 1
                     Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
                     break
-                } catch [System.Management.Automation.ActionPreferenceStopException] {
+                }
+                catch [System.Management.Automation.ActionPreferenceStopException] {
                     Write-Warning 'An error occurred that could not be resolved.'
                     Write-Host $_ -ForegroundColor Red
                     Write-Output 'Please start the script manually.'
@@ -572,7 +573,8 @@ function Initialize-AutoDeploy {
                     Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/"
                     break
                 } #try/catch
-            } else {
+            }
+            else {
                 Write-output 'You can restart the script manually by launching AutoDeployment.bat'
                 Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/"
                 Write-Warning 'Aborting script...'
@@ -581,7 +583,7 @@ function Initialize-AutoDeploy {
             }#if/else $prompt
         } #if/else Test-Connection
     }
-}# Initialize-AutoDeploy
+}# function Initialize-AutoDeploy
 
 Initialize-AutoDeploy
 
@@ -590,11 +592,12 @@ Write-Output "`nScript complete! This script will self-destruct in 5 seconds."
 5..1 | ForEach-Object {
     If ($_ -gt 1) {
         "$_ seconds"
-    } Else {
+    }
+    Else {
         "$_ second"
     }
     Start-Sleep -Seconds 1
-}
+} #5..1 | ForEach-Object
 Write-Output "Script deleted!"
 Invoke-Expression 'cmd /c start powershell -Command {Write-Output "Uninstalling PSWindowsUpdate..." ; sleep 3 ; Uninstall-Module -Name PSWindowsUpdate}'
 Remove-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat" -Force
