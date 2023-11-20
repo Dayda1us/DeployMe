@@ -18,10 +18,9 @@ You must have an Internet connection for this script to work due to PSWindowsUpd
 ## Getting Started
 To get started, download the following files listed in the release repository:
 
-- AutoDeploy.ps1*
+- AutoDeploy.ps1
 - AutoDeployment.bat
-
-*The 'x' denotes the version number.
+- 
 <!-- Installation Guide -->
 ### Installation Guide
 If you have an offline reference image that is setup in "Audit" mode, here are the steps of adding these two files. For this example, I will be using Microsoft Hyper-V.
