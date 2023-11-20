@@ -1,7 +1,7 @@
 <!-- Project Name and Description-->
 # Auto Deployment (AutoDeploy) Script
 <!-- Brief Description -->
-A script used to automate the deployment of Microsoft Windows PCs. This script was developed for my workplace (3R Technology) to automate the process of how I process PC deployments.
+A script used to automate the deployment of Microsoft Windows PCs.
 
 <!-- About this Project -->
 ## About this Project
