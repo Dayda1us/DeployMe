@@ -70,7 +70,7 @@ function Test-InternetConnection {
     Param()
 
     BEGIN {
-        Write-Verbose -Message "[BEGIN] Running an Internet connectivity check for $((Get-CimInstance Win32_ComputerSystem).Name)"
+        Write-Verbose -Message "[BEGIN] Running an Internet connectivity check for $ENV:ComputerName"
         Write-Output "Checking for Internet connectivity...."
     } #BEGIN
     PROCESS {
@@ -78,7 +78,7 @@ function Test-InternetConnection {
         $TestWebsite = "3RTechnology.com"
 
         # If there is no Internet connection, display an error until an Internet connection is found.
-        Write-Verbose -Message "[PROCESS] Checking if $((Get-CimInstance -ClassName Win32_ComputerSystem).Name) can ping to $TestWebsite"
+        Write-Verbose -Message "[PROCESS] Checking if $ENV:ComputerName can ping to $TestWebsite"
         while (-not((Test-Connection $TestWebsite -Quiet -Count 1) -eq $true)) {
             Write-Warning "No Internet connection found. Please double check your network configuration. Retrying..."
             Start-Sleep -Seconds 5
@@ -194,42 +194,54 @@ function Register-MicrosoftKey {
     [CmdletBinding()]
     Param()
     BEGIN {
-        $Title       = 'KeyDeploy'
-        $Description = 'You are about to launch KeyDeploy. If this PC is not connected to the KeyDeploy server, please move the PC to the deployment station.'
-        $Yes         = New-Object System.Management.Automation.Host.ChoiceDescription "&Y", "Launch KeyDeploy"
-        $No          = New-Object System.Management.Automation.Host.ChoiceDescription "&N", "Skip this step. This option may open a window to the KeyDeploy directory if available."
-        $Shutdown    = New-Object System.Management.Automation.Host.ChoiceDescription "&Shutdown", "Shutdown the PC. Use this option if you're deploying a desktop."
-        $Options     = [System.Management.Automation.Host.ChoiceDescription[]]($Yes, $No, $Shutdown)
-        $Default     = 1    # 0 = Yes, 1 = No
-
-        do {
-            $KDResponse = $Host.UI.PromptForChoice($Title, $Description, $Options, $Default)
-            if ($KDResponse -eq 0) { #Yes
-                return 0 | Out-Null
-            }
-            elseif ($KDResponse -eq 2) { #Shutdown PC
-                return 2 | Out-Null
-            } #if/elseif ($KDResponse -eq 0)
-        } until ($KDResponse -eq 1) #do/while
+        if ((Test-Path -Path "$env:WINDIR\MARFO_SCRIPTS\") -eq $True) {
+            $Title = 'KeyDeploy'
+            $Description = 'You are about to launch KeyDeploy. If this PC is not connected to the KeyDeploy server, please move the PC to the deployment station.'
+            $Yes = New-Object System.Management.Automation.Host.ChoiceDescription "&Y", "Launch KeyDeploy"
+            $No = New-Object System.Management.Automation.Host.ChoiceDescription "&N", "Skip this step. This option may open a window to the KeyDeploy directory if available."
+            $Shutdown = New-Object System.Management.Automation.Host.ChoiceDescription "&Shutdown", "Shutdown the PC. Use this option if you're deploying a desktop."
+            $Options = [System.Management.Automation.Host.ChoiceDescription[]]($Yes, $No, $Shutdown)
+            $Default = 1    # 0 = Yes, 1 = No
+    
+            do {
+                $KDResponse = $Host.UI.PromptForChoice($Title, $Description, $Options, $Default)
+                if ($KDResponse -eq 0) {
+                    #Yes
+                    return 0 | Out-Null
+                }
+                elseif ($KDResponse -eq 2) {
+                    #Shutdown PC
+                    return 2 | Out-Null
+                } #if/elseif ($KDResponse -eq 0)
+            } until ($KDResponse -eq 1) #do/while
+        } #if ((Test-Path -Path "$env:WINDIR\MARFO_SCRIPTS\") -eq $True)
     } #BEGIN
     PROCESS {
         switch ($KDResponse) {
-            {$KDResponse -eq 0} { #Yes
+            { $KDResponse -eq 0 } {
+                #Yes
                 Write-Output "Opening KeyDeploy..."
                 <#### TEST ONLY ####> Invoke-Item -Path "$env:WINDIR\notepad.exe"
 
                 if ((Test-Path -Path "$env:WINDIR\MARFO_SCRIPTS\Startup\DTStartup.exe") -eq $true) {
-                    Invoke-Item -Path "$env:WINDIR\MARFO_SCRIPTS\Startup\DTStartup.exe"
+                    try {
+                        Invoke-Item -Path "$env:WINDIR\MARFO_SCRIPTS\Startup\DTStartup.exe"
+                        <# TEST ONLY #> $Process = 'notepad'
+                        do {
+                            start-sleep -Seconds 1
+                        } while ((Get-Process -name $Process -EA SilentlyContinue).name -contains $Process) #dowhile
+                        <#### TEST ONLY ####>
+                    }
+                    catch {
+                        Write-Warning 'An error has occurred that could not be resolved.'
+                        Write-Host $_ -ForegroundColor Red
+                        return $KDResponse -eq 1
+                    }
                 }#if ((Test-Path -Path "$env:WINDIR\MARFO_SCRIPTS\Startup\DTStartup.exe") -eq $true)
 
-                <# TEST ONLY #> $Process = 'notepad'
-                do {
-                    start-sleep -Seconds 1
-                } while ((Get-Process -name $Process -EA SilentlyContinue).name -contains $Process) #dowhile
-                <#### TEST ONLY ####>
-
             } #{$KDResponse -eq 0}
-            {$KDResponse -eq 2} { #Shutdown PC
+            { $KDResponse -eq 2 } {
+                #Shutdown PC
                 Write-Warning 'PC is shutting down'
 
                 <#### TEST ONLY ####>
@@ -239,7 +251,8 @@ function Register-MicrosoftKey {
                         Stop-Process -Name sysprep
                         Start-sleep -Seconds 1
                         Invoke-Command -ScriptBlock { .\sysprep.exe }
-                    } else {
+                    }
+                    else {
                         Invoke-Command -ScriptBlock { .\sysprep.exe }
                     } #if/else ((Get-Process).ProcessName -contains 'sysprep')
 
@@ -247,30 +260,34 @@ function Register-MicrosoftKey {
                 <#### TEST ONLY ####>
                 return 2 | Out-Null
             } #{$KDResponse -eq 2}
-            default { # if no return answer is given, default answer is "No".
+            default {
+                # if no return answer is given, default answer is "No".
                 return 1 | Out-Null
             } #default
         } #switch ($KDResponse)
     }# PROCESS
     END {
         switch ($KDResponse) {
-            {$KDResponse -eq 0} { #Yes
+            { $KDResponse -eq 0 } { #Yes
                 Write-Host 'The operation was successful.' -ForegroundColor Green
                 Write-Output "`nMake sure to leave a square holographic Microsoft Authorized Refurbisher sticker on the bottom of the unit, or as close to the original Windows sticker as possible."
                 Write-Output "If this is a citzenship PC, only put a Microsoft Office for Citizenship key sticker. Citizenship PCs does not get a holographic sticker.`n"
                 Write-Warning "Please make sure to report the key to the MDOS Smart Client as required under the Microsoft Authorized Refurbisher program."
                 Start-Sleep -Seconds 2
             } #{$KDResponse -eq 0}
-            {$KDResponse -eq 2} { #Shutdown PC
-                Write-Output 'PC currently shutting down.'
-                exit
-            } #{$KDResponse -eq 2}
-            default { #No
+            { $KDResponse -eq 1 } { #No
                 Write-Output 'OK! Skipping product key deployment'
-                # This if statement will work if the KeyDeploy files are available.
                 if ((Test-Path -Path "$env:WINDIR\MARFO_SCRIPTS\Startup\") -eq $true) {
                     Invoke-Item -Path "$env:WINDIR\MARFO_SCRIPTS\Startup\"
                 } #if ((Test-Path -Path "$env:WINDIR\MARFO_SCRIPTS\Startup\") -eq $true)
+            } #$KDResponse -eq 1
+            { $KDResponse -eq 2 } { #Shutdown PC
+                Write-Output 'PC currently shutting down.'
+                exit
+            } #{$KDResponse -eq 2}
+            default { #If KeyDeploy is not found
+                Write-Warning "KeyDeploy directory does not exist! Skipping product key deployment."
+                Start-sleep 2
             } #default
         } #switch
     }# END
@@ -542,8 +559,12 @@ function Get-Sysprep {
     }#PROCESS
     END {} #END
 } #function Get-Sysprep
-function Get-RequiredModule {
+function Start-Script {
     Write-Output "STAGE 1: RETRIEVING THE REQUIRED MODULE`n"
+    # Verify the date and time
+    Sync-Time -Timezone 'Pacific Standard Time'
+
+    # Install PSWindowsUpdate
     Get-Nuget
     Set-PSGallery -InstallationPolicy 'Trusted'
     Install-PSWindowsUpdate
@@ -569,12 +590,6 @@ function Initialize-AutoDeploy {
     BEGIN {
         # Test for internet connectivity before running the script.
         Test-InternetConnection
-
-        Write-Verbose -Message "[BEGIN] Verifying the timezone and date/time on $ENV:COMPUTERNAME"
-        # Verify the date and time
-        Sync-Time -Timezone 'Pacific Standard Time'
-
-        #$NuGet = (Get-PackageProvider |  Where-Object { $_.name -eq "Nuget" }).name -contains "NuGet"
     } #BEGIN
 
     PROCESS {
@@ -593,7 +608,8 @@ function Initialize-AutoDeploy {
                     Write-Output 'Module imported'
                     Get-Module
                 } #if ($PSWUModule -eq $true)
-            } catch {
+            }
+            catch {
                 Write-Warning 'An error occurred that could not be resolved.'
                 Write-Host $_ -ForegroundColor Red
                 Write-Warning 'Restarting script...'
@@ -611,7 +627,7 @@ function Initialize-AutoDeploy {
             $GWU = (Get-WUList).Size
 
             switch ($GWU) {
-                { -not($GWU -gt 0) -and $InstallPolicy -eq "Trusted"} {
+                { -not($GWU -gt 0) -and $InstallPolicy -eq "Trusted" } {
                     Set-Message -Message 2
                     Deploy-Computer
                 } #-not($GWU -gt 0) -and $PSGallery -eq $false -and $InstallPolicy -eq "Untrusted"
@@ -629,7 +645,7 @@ function Initialize-AutoDeploy {
         else {
             Write-Verbose -Message "Initialize the script for the first time"
             Clear-Host
-            Get-RequiredModule
+            Start-Script
             Get-Update
             Deploy-Computer
         } #if/else if ($PSWU -eq $true)
