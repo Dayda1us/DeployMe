@@ -1,18 +1,20 @@
 <!-- Project Name and Description-->
-# Auto Deployment (AutoDeploy) Script
+# Windows Auto Deployment (AutoDeploy) Script
 <!-- Brief Description -->
-An automated script that is used to update Windows PCs and deploy WIndows Refurbish Product Keys.
+An automated script that deploys Windows PCs written in PowerShell.
 
 <!-- About this Project -->
 ## About this Project
-The script was developed for my workplace that primarily deals with IT Asset Disposal (ITAD). The purpose of this script is to automate the deployment of refurbished PCs by updating to the latest patches from Microsoft and retrieve a new Microsoft Windows product key as the company is an Authorized Microsoft Refurbisher (MAR). 
+This script was developed for the purpose of automating deployments for refurbished PCs by updating the PC to the latest patches and retrieving drivers from Microsoft Update. The script has the ability to add a Windows product key for refurbished PCs by launching an application called Key Deploy.
 
-The company that I work for deploys around 30 to 50 refurbished computers a day. Prior to the creation of this script, all deployments were done manually by having the technician interact with each computers. With this script, this significantly reduces the workload.
+Prior to the creation of this script, PC deployments were done manually by having an ITAD technician interact with each computer. With the creation of this script, this reduces the workload of interacting with the PCs which allows the ITAD technicians to perform other duties while the deployed PCs are automated.
 
 <!-- Features -->
 ## Features
-- Uses PSWindowsUpdate to automatically grabs software updates and stable drivers from Microsoft.
-- Has the ability to automatically sync the timezone when a deployed PC has an out-of-sync clock.
+- Uses PSWindowsUpdate which allows the script to retrieve Windows updates and drivers from PowerShell.
+- The script has the ability to automatically sync the date and time when the computer's current time/date is out of sync.
+- The script can deploy Windows product keys on refurbished PCs which runs an application called Key Deploy.
 <!-- How the script works -->
 ## How does the script work?
-When you first start the script on a reference image, it displays the 
+
+Launching the script will perform a prerequisite check which is checking for Internet connectivity.
