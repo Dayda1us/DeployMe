@@ -1,6 +1,6 @@
 #####################################################################################
 #                                                                                   #
-#                          WINDOWS AUTO DEPLOYMENT (v3.0)                           #
+#                          WINDOWS AUTO DEPLOYMENT (v3.5)                           #
 #                                                                                   #
 #       Leverages PSWindowsUpdate to install drivers and updates                    #
 #       and deploy Microsoft Windows product key for refurbish PCs                  #
@@ -20,8 +20,8 @@ Write-Host "  |_ \| |_) |   | | |  _|| |   | |_| |  \| | | | | |  | | | | |  _ \
 Write-Host " ___) |  _ <    | | | |__| |___|  _  | |\  | |_| | |__| |_| | |_| | | |  " -ForegroundColor Green
 Write-Host "|____/|_| \_\   |_| |_____\____|_| |_|_| \_|\___/|_____\___/ \____| |_|`n  " -ForegroundColor Green
 Write-Output "#######################################################################"
-Write-Output "#               WINDOWS AUTOMATED DEPLOYMENT SCRIPT v3.0              #"
-Write-Output "#                              12-1-2023                              #"
+Write-Output "#               WINDOWS AUTOMATED DEPLOYMENT SCRIPT v3.5              #"
+Write-Output "#                               ALPHA                                 #"
 Write-Output "#                      DEVELOPED BY CHARLES THAI                      #"
 Write-Output "#######################################################################`n"
 Start-Sleep -seconds 3
@@ -35,7 +35,7 @@ function Set-Message {
     )
 
     $SelectedNumber = $Message
-    [int[]]$numbers = (1, 2, 3, 4)
+    [int[]]$numbers = (1, 2, 3)
 
     switch ($Number) {
         { $SelectedNumber -eq $numbers[0] } {
@@ -54,11 +54,6 @@ function Set-Message {
             Start-sleep -Seconds 2
             Clear-Host
         }
-        { $SelectedNumber -eq $numbers[3] } {
-            Write-Output 'The script has detected that the required cmdlets were reverted back to its original settings. Launching KeyDeploy.'
-            Start-Sleep -Seconds 2
-            Clear-Host
-        }
         default {
             Write-Warning "Invalid message number. Valid numbers are $numbers"
         }
@@ -70,25 +65,39 @@ function Test-InternetConnection {
     Param()
 
     BEGIN {
-        Write-Verbose -Message "[BEGIN] Running an Internet connectivity check for $ENV:ComputerName"
-        Write-Output "Checking for Internet connectivity...."
-    } #BEGIN
-    PROCESS {
+        Write-Verbose -Message "[BEGIN] Running an Internet connectivity check for $env:COMPUTERNAME"
+        Write-Output "Checking for Internet connectivity..."
+
         # Company Website
         $TestWebsite = "3RTechnology.com"
-
+    } #BEGIN
+    PROCESS {
         # If there is no Internet connection, display an error until an Internet connection is found.
-        Write-Verbose -Message "[PROCESS] Checking if $ENV:ComputerName can ping to $TestWebsite"
+        Write-Verbose -Message "[PROCESS] Checking if $env:COMPUTERNAME can ping to $TestWebsite"
         while (-not((Test-Connection $TestWebsite -Quiet -Count 1) -eq $true)) {
-            Write-Warning "No Internet connection found. Please double check your network configuration. Retrying..."
-            Start-Sleep -Seconds 5
+            10..1 | ForEach-Object {
+                Write-Warning "No Internet connection found. Retrying..."
+                Start-Sleep -Seconds 5
+            }
+            break
         }
     }#PROCESS
     END {
-        Write-Verbose -Message "[END] $((Get-CimInstance -ClassName Win32_ComputerSystem).Name) successfully pings $TestWebsite"
-        Write-Host "Internet connection established!" -ForegroundColor Green
-        Start-sleep -Seconds 5
-        Clear-Host
+        if (((Test-Connection $TestWebsite -Quiet -Count 1) -eq $true)) {
+            Write-Verbose -Message "[END] $env:COMPUTERNAME successfully pings $TestWebsite"
+            Write-Host "Internet connection established!" -ForegroundColor Green
+            Start-sleep -Seconds 3
+            Clear-Host
+        }
+        else {
+            Write-Verbose -Message "[END] $env:COMPUTERNAME could not establish an Internet connection."
+            Write-Warning "Could not establish an Internet connection. Please check your network configuration and try again."
+            if ((Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/") -eq $true) {
+                Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/"
+            } #if ((Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/") -eq $true)
+            Start-Sleep -Seconds 5
+            exit
+        } #if/else (((Test-Connection $TestWebsite -Quiet -Count 1) -eq $true))
     } #END 
 }#function Test-InternetConnection
 
@@ -149,8 +158,9 @@ function Sync-Time {
                 Write-Output 'Restarting script...'
                 Start-Sleep -Seconds 5
                 Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
-                exit
+                break
             } #try/catch
+
         }
         else {
             Write-Output "Starting $WindowsTime..."
@@ -174,7 +184,7 @@ function Sync-Time {
                 Write-Output 'Restarting script...'
                 Start-Sleep -Seconds 5
                 Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
-                exit
+                break
             } #try/catch
         } #if/else ((Get-Service -Name $WindowsTime).Status -eq 'Running')
     } #PROCESS
@@ -187,110 +197,6 @@ function Sync-Time {
         } #if ($CurrentTimeZone -eq $PreferredTimeZone)
     } #END
 } #function Sync-Time
-
-
-function Register-MicrosoftKey {
-    [CmdletBinding()]
-    Param()
-    BEGIN {
-        if ((Test-Path -Path "$env:WINDIR\MARFO_SCRIPTS\") -eq $True) {
-            $Title = 'Key Deploy'
-            $Description = "Please make sure you're connected to the Key Deploy server at the deployment station. Would you like to launch KeyDeploy now?"
-            $Yes = New-Object System.Management.Automation.Host.ChoiceDescription "&Yes", "Launch Key Deploy."
-            $No = New-Object System.Management.Automation.Host.ChoiceDescription "&No", "Do not launch Key Deploy at this time. This option will open the KeyDeploy directory."
-            $Shutdown = New-Object System.Management.Automation.Host.ChoiceDescription "&Shutdown", "Shutdown the PC. Use this option if you're deploying a desktop."
-            $Options = [System.Management.Automation.Host.ChoiceDescription[]]($Yes, $No, $Shutdown)
-            $Default = 1    # 0 = Yes, 1 = No, 2 = Shutdown
-    
-            do {
-                $KDResponse = $Host.UI.PromptForChoice($Title, $Description, $Options, $Default)
-                if ($KDResponse -eq 0) {
-                    #Yes
-                    return 0 | Out-Null
-                }
-                elseif ($KDResponse -eq 2) {
-                    #Shutdown PC
-                    return 2 | Out-Null
-                } #if/elseif ($KDResponse -eq 0)
-            } until ($KDResponse -eq 1) #do/while
-        } else {
-            $KDResponse = -1
-        }#if/else ((Test-Path -Path "$env:WINDIR\MARFO_SCRIPTS\") -eq $True)
-    } #BEGIN
-    PROCESS {
-        switch ($KDResponse) {
-            { $KDResponse -eq 0 } {
-                #Yes
-                Write-Output "Opening Key Deploy..."
-                if ((Test-Path -Path "$env:WINDIR\MARFO_SCRIPTS\Startup\DTStartup.exe") -eq $true) {
-                    try {
-                        Invoke-Item -Path "$env:WINDIR\MARFO_SCRIPTS\Startup\DTStartup.exe"
-                        $Process = 'DTStartup'
-                        Write-Output "Key Deploy opened."
-                        do {
-                            start-sleep -Seconds 1
-                        } while ((Get-Process -name $Process -EA SilentlyContinue).name -contains $Process) #dowhile
-                    }
-                    catch {
-                        Write-Warning 'An error has occurred that could not be resolved. Please open Key Deploy manually.'
-                        Write-Host $_ -ForegroundColor Red
-                        $KDResponse = 1
-                    } #try/catch
-                } else {
-                    $KDResponse = -1
-                }#if ((Test-Path -Path "$env:WINDIR\MARFO_SCRIPTS\Startup\DTStartup.exe") -eq $true)
-
-            } #{$KDResponse -eq 0}
-            { $KDResponse -eq 2 } {
-                #Shutdown PC
-                Write-Warning 'Shutting down using Sysprep audit mode...'
-                if ((Test-Path -Path "$ENV:WINDIR\SYSTEM32\SYSPREP\SYSPREP.exe") -eq $true) {
-                    Set-Location "$ENV:WINDIR\SYSTEM32\SYSPREP\"
-                    if ((Get-Process).ProcessName -contains 'sysprep') {
-                        Stop-Process -Name sysprep
-                        Start-sleep -Seconds 1
-                        Invoke-Command -ScriptBlock { .\sysprep.exe /audit /shutdown }
-                    }
-                    else {
-                        Invoke-Command -ScriptBlock { .\sysprep.exe /audit /shutdown }
-                    } #if/else ((Get-Process).ProcessName -contains 'sysprep')
-
-                } #if (Test-Path -Path "$ENV:WINDIR\SYSTEM32\SYSPREP\SYSPREP.exe" -eq $true)
-                return 2 | Out-Null
-            } #{$KDResponse -eq 2}
-            default {
-                # if no return answer is given, default answer is "No".
-                return 1 | Out-Null
-            } #default
-        } #switch ($KDResponse)
-    }# PROCESS
-    END {
-        switch ($KDResponse) {
-            { $KDResponse -eq 0 } { #Yes
-                Write-Host 'The operation was successful.' -ForegroundColor Green
-                Write-Output "`nMake sure to leave a square holographic Microsoft Authorized Refurbisher sticker on the bottom of the unit, or as close to the original Windows sticker as possible."
-                Write-Output "If this is a citzenship PC, only put a Microsoft Office for Citizenship key sticker. Citizenship PCs does not get a holographic sticker.`n"
-                Write-Warning "Please make sure to report the key to the MDOS Smart Client as required under the Microsoft Authorized Refurbisher program."
-                Start-Sleep -Seconds 2
-            } #{$KDResponse -eq 0}
-            { $KDResponse -eq 1 } { #No
-                Write-Output 'OK! Skipping product key deployment'
-                if ((Test-Path -Path "$env:WINDIR\MARFO_SCRIPTS\Startup\") -eq $true) {
-                    Invoke-Item -Path "$env:WINDIR\MARFO_SCRIPTS\Startup\"
-                } #if ((Test-Path -Path "$env:WINDIR\MARFO_SCRIPTS\Startup\") -eq $true)
-            } #$KDResponse -eq 1
-            { $KDResponse -eq 2 } { #Shutdown PC
-                Write-Output 'PC currently shutting down.'
-                start-sleep -Seconds 1
-                exit
-            } #{$KDResponse -eq 2}
-            default { #If KeyDeploy is not found
-                Write-Warning "KeyDeploy directory does not exist! Skipping product key deployment."
-                Start-sleep 2
-            } #default
-        } #switch
-    }# END
-} #function Register-MicrosoftKey
 
 ###########################
 # INSTALL PSWINDOWSUPDATE #
@@ -410,7 +316,7 @@ function Install-PSWindowsUpdate {
 
     PROCESS {
         try {
-            $Module = (Get-InstalledModule -Name $PSWU -EA SilentlyContinue).name -contains 'PSWindowsUpdate'
+            $Module = (Get-InstalledModule -Name $PSWU -EA Continue).name -contains 'PSWindowsUpdate'
             if ($Module -eq $True) {
                 $Import = (Get-Module -Name PSWindowsUpdate).name -contains "PSWindowsUpdate"
                 Write-Output "$PSWU is already installed. Checking if module is imported..."
@@ -472,17 +378,21 @@ function Get-MicrosoftUpdate {
             if (($PSWUReboot -eq $true)) {
                 Write-Output 'One or more updates require a reboot.'
                 Start-sleep -Seconds 1
-                exit
+                break
             }#if
         }
         catch [System.Management.Automation.CommandNotFoundException] {
+            Write-Warning "A fatal error has occurred. This may be caused by the PSWindowsUpdate module not being properly imported."
             Write-Host $_.Exception.Message
-            Write-Warning "A fatal error has occurred. This may be caused by the PSWindowsUpdate module not being imported."
             Write-Output "`nRestarting script..."
             Start-Sleep -Seconds -5
-            if (Test-Path -Path Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat" -eq $true) {
+
+            # If the bat file exists, launch the bat file. Otherwise, open the Startup directory.
+            if ((Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat") -eq $true) {
                 Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
-            } #if (Test-Path -Path Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat" -eq $true)
+            } else {
+                Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/"
+            } # End if/else ((Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat") -eq $true)
             exit
         } #try/catch
     } #PROCESS
@@ -502,49 +412,93 @@ function Remove-RefurbAccount {
 
     BEGIN {
         $Account = 'Refurb'
-        Write-Output "Retrieving previously created local account: $Account"
+        Write-Output "Retrieving previously created local account: $account"
     }#BEGIN
     PROCESS {
-        if (-not((Get-LocalUser).name -eq $Account)) {
-            Write-Warning "$Account account doesnt exist!`n"
-        } else {
-            try {
-                Remove-LocalUser -Name $Account -EA Stop
-                Write-Output "`n$Account removed!"
-            } catch {
-                Write-Host $_ -ForegroundColor Red
-                Write-Warning "An error has occurred that could not be resolved. Please remove the account manually."
-                Start-Process "ms-settings:otherusers"
-            }#try/catch
-        } #if/else (-not((Get-LocalUser).name -eq $Account))
+        try {
+            Remove-LocalUser -Name $Account -EA Stop
+            Get-LocalUser
+            Write-Output "`n$Account removed!"
+        } 
+        catch [Microsoft.PowerShell.Commands.AccessDeniedException] {
+            Write-Warning 'This cmdlet requires elevated privileges.'
+        } 
+        catch {
+            Get-LocalUser
+            Write-Warning "$Account doesn't exist!"
+        }#try/catch
     }#PROCESS
     END {}#END
 } #function Remove-RefurbAccount
 
-# Start the script by setting the correct date and time. Then install the PSWindowsUpdate to begin retrieving updates via PowerShell.
-function Start-Script {
-    Write-Output "STAGE 1: RETRIEVING THE REQUIRED MODULE`n"
-    # Verify the date and time
-    Sync-Time -Timezone 'Pacific Standard Time'
+# Opens/Terminates Sysprep
+function Get-Sysprep {
+    [CmdletBinding()]
+    Param(
+        [switch]$Terminate
+    )
+    BEGIN {
+        $Process = "Sysprep"
+        $ProcessOpen = ((Get-Process -Name $Process -EA SilentlyContinue).ProcessName -eq $Process)
+    }#BEGIN
+    PROCESS {
+        try {
+            if ($Terminate) {
+                Write-Output "Terminating $Process..."
+                Start-sleep -Seconds 2
+                Stop-Process -ProcessName $Process -EA Stop
+                Write-Host "$process terminated." -ForegroundColor Green
+            }
+            elseif ($ProcessOpen -eq $true) {
+                Write-Output "$Process is already opened!"
+            }
+            else {
+                Set-Location $env:WINDIR/System32/Sysprep
+                Start-Process $Process
+            }#if/else
+        }#try
+        catch [System.Management.Automation.ActionPreferenceStopException] {
+            if (!((Get-Process -Name $Process -EA SilentlyContinue).name -eq "$Process")) {
+                Write-Warning "$Process is not opened"
+            }
+            elseif ($Terminate) {
+                Write-Warning 'This parameter requires an elevated Windows PowerShell console.'           
+            }#if/else
+        }#catch
+    }#PROCESS
+    END {} #END
+} #function Get-Sysprep
 
-    # Install PSWindowsUpdate
+# Sysprep the machine
+function Initialize-OOBE {
+    Write-Output "`nPreparing Sysprep..."
+    Start-sleep 5
+    Set-Location $env:SystemRoot\System32\Sysprep
+    .\sysprep.exe /oobe
+    shutdown.exe /s /t 10
+} #function Initialize-OOBE
+
+function Stage1 {
+    Write-Output "STAGE 1: RETRIEVING THE REQUIRED MODULE`n"
     Get-Nuget
     Set-PSGallery -InstallationPolicy 'Trusted'
     Install-PSWindowsUpdate
     Set-Message -Message 1
 } #function Stage1
 
-# Accept, Download, Install, and Reboot updates using PSWindowsUpdate.
-function Get-Update {
+function Stage2 {
     Write-Output "STAGE 2: UPDATES`n"
     Get-MicrosoftUpdate
 } #function Stage2
 
-function Deploy-Computer {
+function Stage3 {
     Write-Output "FINAL STAGE: DEPLOYMENT`n"
     Set-PSGallery -InstallationPolicy 'Untrusted'
     Remove-RefurbAccount
-    Register-MicrosoftKey
+
+    # TODO: To be implemented.
+    #Register-MicrosoftWindowsProductKey
+    #CheckWindowsLicense
 } #function Stage3
 
 function Initialize-AutoDeploy {
@@ -554,80 +508,108 @@ function Initialize-AutoDeploy {
     BEGIN {
         # Test for internet connectivity before running the script.
         Test-InternetConnection
+
+        Write-Verbose -Message "[BEGIN] Verifying the timezone and date/time on $env:COMPUTERNAME"
+        # Verify the date and time
+        Sync-Time -Timezone 'Pacific Standard Time'
     } #BEGIN
 
     PROCESS {
-        Write-Verbose -Message "Checking if this script was previously ran on $ENV:COMPUTERNAME"
+        $PSWU = 'PSWindowsUpdate'
+        $NuGet = (Get-PackageProvider |  Where-Object { $_.name -eq "Nuget" }).name -contains "NuGet"
+        $PSGallery = (Get-PSRepository -name PSGallery).name -eq "PSGallery"
+        $InstallPolicy = (Get-PSRepository -Name PSGallery | Where-Object { $_.InstallationPolicy -contains "Trusted" }).InstallationPolicy
+    
+        Write-Verbose -Message "Checking if this script was previously ran on $env:COMPUTERNAME"
         Write-Output "Initializing script...`n"
-        $PSWU = (Get-InstalledModule).name -contains 'PSWindowsUpdate'
-        Start-Sleep -Seconds 2
-        
-        if ($PSWU -eq $true) {
-            Write-Output "The script has detected PSWindowsUpdate has already been installed. Importing the PSWindowsUpdate module..."
+        Start-sleep -Seconds 2
+        if ($NuGet -eq $true -and $PSGallery -eq $true -and $InstallPolicy -eq "Trusted") {
+            Write-Output "The script has detected that the settings were already modified. Importing the PSWindowsUpdate module..."
             Start-Sleep -Seconds 2
             try {
-                Import-Module 'PSWindowsUpdate' -EA Stop
-                $PSWUModule = (Get-Module).Name -contains 'PSWindowsUpdate'
-                if ($PSWUModule -eq $true) {
-                    Write-Output 'Module imported'
+                $Module = (Get-InstalledModule -Name $PSWU -EA Continue).name -contains $PSWU
+                if ($Module -eq $true) {
+                    Import-Module -Name $PSWU -EA Stop
+                    Write-Output "Module imported.`n"
+                    Get-Module -Name $PSWU    
+                }
+                else {
+                    Write-Host -ForegroundColor Red $_.Exception.Message
+                    Write-Warning 'PSWindowsUpdate not installed. Installing module...'
+                    Install-Module -Name $PSWU -Force
+                    Write-Output 'Importing module...'
+                    Import-Module -Name $PSWU
+                    Write-Host -ForegroundColor Green 'PSWindowsUpdate imported.'
                     Get-Module
-                } #if ($PSWUModule -eq $true)
+                    start-sleep -seconds 2
+                }
             }
             catch {
-                Write-Warning 'An error occurred that could not be resolved.'
-                Write-Host $_ -ForegroundColor Red
-                Write-Warning 'Restarting script...'
-                Start-sleep 2
-                if (Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat" -eq $true) {
-                    Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
-                } #if (Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat" -eq $true)
-                exit
+                Write-Output "An error has occurred:" $_.Exception.Message
+                Write-Output 'Aborting script...'
+                Start-sleep -seconds 2
+                break
             } #try/catch
     
-            Write-Verbose -Message "$env:COMPUTERNAME is checking for updates."
+            Write-Verbose -Message "Computer checking for updates."
             Write-Output "`nChecking for updates..."
-            #$PSGallery = (Get-PSRepository -name PSGallery).name -eq "PSGallery"
-            $InstallPolicy = (Get-PSRepository -Name PSGallery).InstallationPolicy
             $GWU = (Get-WUList).Size
-
-            switch ($GWU) {
-                # If the computer is up to date, but the PSGallery is set to "Trusted".
-                { -not($GWU -gt 0) -and $InstallPolicy -eq "Trusted" } {
-                    Set-Message -Message 2
-                    Deploy-Computer
-                } #-not($GWU -gt 0) -and $PSGallery -eq $false -and $InstallPolicy -eq "Untrusted"
-
-                # If the computer is up to date, and PSGallery is set to "Untrusted". Move on to KeyDeploy.
-                { -not($GWU -gt 0) -and -not($InstallPolicy -eq "Trusted") } {
-                    Set-Message -Message 4
-                    Register-MicrosoftKey
-                } #-not($GWU -gt 0) -and -not($InstallPolicy -eq "Trusted")
-
-                #If you still have updates to install.
-                default {  
-                    Set-Message -Message 3
-                    Get-Update
-                    Deploy-Computer
-                } #default
-            } #switch ($GWU)
-        } #if ($NuGet -eq $true -and $PSGallery -eq $true -and $InstallPolicy -eq "Trusted")
+            if ($GWU -gt 0) {
+                Set-Message -Message 3
+                Stage2
+                Stage3
+            }
+            else {
+                Set-Message -Message 2
+                Stage3
+            }#if/else
+        }
         else {
             Write-Verbose -Message "Initialize the script for the first time"
             Clear-Host
-            Start-Script
-            Get-Update
-            Deploy-Computer
-        } #if/else if ($PSWU -eq $true)
+            Stage1
+            Stage2
+            Stage3
+        } #if/else
     } #PROCESS
     
-    END {} #END
+    END {
+        if ((Test-Connection google.com -Count 1 -Quiet) -eq $false) {
+            Write-Verbose "[END] Internet connection dropped on $env:COMPUTERNAME"
+            Write-Warning "$env:COMPUTERNAME lost Internet connection."
+            $Prompt = Read-Host "Would you like to restart the script? (Y/N) [Default is N]"
+            if ($Prompt -match 'Y') {
+                try {
+                    Write-Output "Restarting script..."
+                    Start-sleep -Seconds 1
+                    Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
+                    break
+                }
+                catch [System.Management.Automation.ActionPreferenceStopException] {
+                    Write-Warning 'An error occurred that could not be resolved.'
+                    Write-Host $_ -ForegroundColor Red
+                    Write-Output 'Please start the script manually.'
+                    Start-sleep 2
+                    Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/"
+                    break
+                } #try/catch
+            }
+            else {
+                Write-output 'You can restart the script manually by launching AutoDeployment.bat'
+                Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/"
+                Write-Warning 'Aborting script...'
+                Start-sleep 5
+                break
+            }#if/else $prompt
+        } #if/else Test-Connection
+    }
 }# function Initialize-AutoDeploy
 
 Initialize-AutoDeploy
 
 # Delete the script once it is done.
-Write-Output "`nScript complete! This script will self-destruct in 3 seconds."
-3..1 | ForEach-Object {
+Write-Output "`nScript complete! This script will self-destruct in 5 seconds."
+5..1 | ForEach-Object {
     If ($_ -gt 1) {
         "$_ seconds"
     }
@@ -637,7 +619,6 @@ Write-Output "`nScript complete! This script will self-destruct in 3 seconds."
     Start-Sleep -Seconds 1
 } #5..1 | ForEach-Object
 Write-Output "Script deleted!"
-Invoke-Expression 'cmd /c start powershell -Command {Write-Output "Uninstalling PSWindowsUpdate..." ; Uninstall-Module -Name PSWindowsUpdate}'
+Invoke-Expression 'cmd /c start powershell -Command {Write-Output "Uninstalling PSWindowsUpdate..." ; sleep 3 ; Uninstall-Module -Name PSWindowsUpdate}'
 Remove-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat" -Force
 Remove-Item -Path $MyInvocation.MyCommand.Source -Force
-
