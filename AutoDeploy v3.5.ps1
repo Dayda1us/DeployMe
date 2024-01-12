@@ -596,14 +596,7 @@ function Get-MicrosoftUpdate {
         } #End Catch
     } #END PROCESS
     END {
-        if (((Get-PSRepository -Name PSGallery).InstallationPolicy -eq "Untrusted") -and -not(Get-LocalUser -Name "Refurb").Name) {
-            Write-Output "The settings were already set back to its original setting. Launching KeyDeploy..."
-            Start-Sleep -Seconds 3
-            Register-MicrosoftKey
-        } #end if
-        else {
-            Set-Message -Message 2
-        }
+        Set-Message -Message 2
     } #END
 } #function Get-MicrosoftUpdate
 
@@ -643,6 +636,7 @@ function Remove-RefurbAccount {
 function Start-Script {
     Clear-Host
     Write-Output "STAGE 1: RETRIEVING THE REQUIRED MODULE`n"
+
     # Verify the date and time. Change the timezone according to your location.
     Sync-Time -Timezone 'Pacific Standard Time'
 
@@ -661,10 +655,19 @@ function Get-Update {
 } #End function Get-Update
 
 function Deploy-Computer {
-    Write-Output "FINAL STAGE: DEPLOYMENT`n"
-    Set-PSGallery -InstallationPolicy 'Untrusted'
-    Remove-RefurbAccount
-    Register-MicrosoftKey
+    # If PSGallery is set to Untrusted and "Refurb" is already removed, launch KeyDeploy.
+    if (((Get-PSRepository -Name PSGallery).InstallationPolicy -eq "Untrusted") -and -not(Get-LocalUser -Name "Refurb").Name) {
+        Write-Output "FINAL STAGE: DEPLOYMENT`n"
+        Write-Output "The settings were already set back to its original setting. Launching KeyDeploy..."
+        Start-Sleep -Seconds 3
+        Register-MicrosoftKey
+    } #end if
+    else {
+        Write-Output "FINAL STAGE: DEPLOYMENT`n"
+        Set-PSGallery -InstallationPolicy 'Untrusted'
+        Remove-RefurbAccount
+        Register-MicrosoftKey
+    } #end else
 } #End function Deploy-Computer
 
 function Initialize-AutoDeploy {
