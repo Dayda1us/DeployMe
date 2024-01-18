@@ -242,12 +242,14 @@ function Register-MicrosoftKey {
                 if ((Test-Path -Path "$env:WINDIR\MARFO_SCRIPTS\Startup\DTStartup.exe") -eq $true) {
                     try {
                         Invoke-Item -Path "$env:WINDIR\MARFO_SCRIPTS\Startup\DTStartup.exe"
-                        $Process = 'DTStartup'
+                        <#
+                         $Process = 'DTStartup'
                         Write-Output "Key Deploy opened."
                         do {
                             start-sleep -Seconds 1
                         } while ((Get-Process -name $Process -EA SilentlyContinue).name -contains $Process) #dowhile
-                    }
+                        #>
+                    } #End try
                     catch {
                         Write-Warning 'An error has occurred that could not be resolved. Please open Key Deploy manually.'
                         Write-Host $_ -ForegroundColor Red
