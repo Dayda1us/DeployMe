@@ -421,7 +421,7 @@ function Set-PSGallery {
     END {} #END
 } #function Set-PSGallery
 
-# Installs PSWindowsUpdate and imports the module. (TEST THE NEW FUNCTION)
+# Installs PSWindowsUpdate and imports the module.
 function Get-PSWindowsUpdate {
     [CmdletBinding()]
     Param()
@@ -588,7 +588,7 @@ function Get-MicrosoftUpdate {
         } #End try
         catch {
             Write-Host $_ -ForegroundColor Red
-            Write-Warning "A fatal error has occurred. This may be caused by PSWindowsUpdate not being properly imported."
+            Write-Warning "A fatal error has occurred that could not be resolved."
             Write-Output "`nRestarting script..."
             Start-Sleep -Seconds 5
             if ((Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat") -eq $true) {
@@ -601,6 +601,85 @@ function Get-MicrosoftUpdate {
         Set-Message -Message 2
     } #END
 } #function Get-MicrosoftUpdate
+
+############# BEGIN TEST FUNCTION ######################
+
+function Request-MicrosoftUpdate {
+    [CmdletBinding()]
+    Param()
+
+    BEGIN {
+        if ((Get-Module).Name -contains 'PSWindowsUpdate') {
+            Write-Output "CHECKING FOR UPDATES"
+        } #end if
+        else {
+            Write-Warning 'PSWindowsUpdate is not imported! Restarting script...'
+            Start-Sleep -Seconds 3
+            if ((Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat") -eq $true) {
+                Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
+            } #End if
+            exit
+        } #end if
+    } #END BEGIN
+    PROCESS {
+
+        # Update Categories
+        $UpdateCatalog = @(
+            'Critical Updates',                 # <-- 20XX-XX Update for Windows XX Version 2XXX for [ANY ARCHITECTURE]-based Systems.
+            'Definition Updates',               # <-- AKA Security Intelligence Updates.
+            'Drivers',                          # <-- Self-explantory.
+            'Feature Packs', 
+            'Security Updates',                 # <-- Cumulative Updates also counts as "Security Updates".
+            'Service Packs', 
+            'Tools', 
+            'Update Rollups',                   # <-- Windows Malicious Software Removal Tool.
+            'Updates',                          # <-- Combination of security, definition, and critical updates.
+            'Upgrades'
+            )
+
+        try {
+            # Download and install drivers. Exclude preview driver updates.
+            while ((Get-WUList -Category $UpdateCatalog[2] -NotTitle 'Preview').Size -gt 0) {
+                Get-WUList -Category $UpdateCatalog[2] -NotTitle 'Preview' -AcceptAll -Install -AutoReboot | Format-List Title, KB, Size, Status, RebootRequired
+            } #End while
+
+            # Download critical updates, virus definitions, and update rollups. Exclude preview updates
+            while ((Get-WUList -Category $UpdateCatalog[0,1,7]).Size -gt 0) {
+                Get-WUList -Category $UpdateCatalog[0,1,7] -NotTitle 'Preview' -AcceptAll -Install -AutoReboot | Format-List Title, KB, Size, Status, RebootRequired
+            } #End while
+
+
+            # Download Security/Cumulative Updates. Exclude preview updates
+            while ((Get-WUList -Category $UpdateCatalog[4]).Size -gt 0) {
+                Get-WUList -Category $UpdateCatalog[4] -NotTitle 'Preview' -AcceptAll -Install -AutoReboot | Format-List Title, KB, Size, Status, RebootRequired
+            } #End while
+
+            $PSWUReboot = Get-WURebootStatus -Silent
+            if (($PSWUReboot -eq $true)) {
+                Write-Output 'One or more updates require a reboot.'
+                Start-sleep -Seconds 1
+                exit
+            }#End if
+        } #End try
+        catch {
+            Write-Host $_ -ForegroundColor Red
+            Write-Warning "A fatal error has occurred. This may be caused by PSWindowsUpdate not being properly imported."
+            Write-Output "`nRestarting script..."
+            Start-Sleep -Seconds 5
+            if ((Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat") -eq $true) {
+                Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
+            } #End if
+            exit
+        } #End Catch
+    } #END PROCESS
+    END {
+        if ((-not(Get-WUList -Category $UpdateCatalog[2] -NotTitle 'Preview').Size -gt 0) -and (-not(Get-WUList -Category $UpdateCatalog[0,1,7]).Size -gt 0) -and (-not(Get-WUList -Category $UpdateCatalog[4]).Size -gt 0)) {
+            Set-Message -Message 2
+        } #end if
+    } #END
+} # end function Request-MicrosoftUpdate
+
+########### END TEST FUNCTION ###################
 
 ################
 #  DEPLOYMENT  #
@@ -653,7 +732,8 @@ function Start-Script {
 # Accept, Download, Install, and Reboot updates using PSWindowsUpdate.
 function Get-Update {
     Write-Output "STAGE 2: UPDATES`n"
-    Get-MicrosoftUpdate
+    #Get-MicrosoftUpdate
+    Request-MicrosoftUpdate # <-- TEST FUNCTION
 } #End function Get-Update
 
 function Deploy-Computer {
@@ -786,7 +866,110 @@ function Initialize-AutoDeploy {
     END {} #END
 }#End function Initialize-AutoDeploy
 
-Initialize-AutoDeploy
+############ BEGIN TEST FUNCTION ###################
+
+function Initialize-AutoDeploy_TEST {
+    [CmdletBinding()]
+    Param()
+    
+    BEGIN {
+        # Test for internet connectivity before running the script.
+        Test-InternetConnection
+    } #BEGIN
+
+    PROCESS {
+        Write-Verbose -Message "Checking if this script was previously ran on $ENV:COMPUTERNAME"
+        Write-Output "Initializing script...`n"
+        $PSWU = (Get-InstalledModule).name -contains 'PSWindowsUpdate'
+        Start-Sleep -Seconds 2
+
+        # If PSWindowsUpdate is already installed on the machine, import the module then check for updates.
+        if ($PSWU -eq $true) {
+            Write-Output "AutoDeploy has detected that PSWindowsUpdate has already been installed. Importing the PSWindowsUpdate module..."
+            Start-Sleep -Seconds 2
+            try {
+                Import-Module 'PSWindowsUpdate' -EA Stop
+                $PSWUModule = (Get-Module).Name -contains 'PSWindowsUpdate'
+                if ($PSWUModule -eq $true) {
+                    Write-Output 'Module imported'
+                    Get-Module
+                } #End if
+            } #End try
+            catch {
+                Write-Host $_ -ForegroundColor Red
+                Write-Warning 'An error occurred that could not be resolved. Restarting script...'
+                Start-sleep 2
+                if (Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat" -eq $true) {
+                    Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
+                } #End if
+                exit
+            } #End catch
+    
+            Write-Verbose -Message "$env:COMPUTERNAME is checking for updates."
+            Write-Output "`nChecking for updates..."
+            $InstallPolicy = (Get-PSRepository -Name PSGallery).InstallationPolicy
+
+            # Update Categories
+            $UpdateCatalog = @(
+            'Critical Updates',                 # <-- 20XX-XX Update for Windows XX Version 2XXX for [ANY ARCHITECTURE]-based Systems.
+            'Definition Updates',               # <-- AKA Security Intelligence Updates.
+            'Drivers',                          # <-- Self-explantory.
+            'Feature Packs', 
+            'Security Updates',                 # <-- Cumulative Updates also counts as "Security Updates".
+            'Service Packs', 
+            'Tools', 
+            'Update Rollups',                   # <-- Windows Malicious Software Removal Tool.
+            'Updates',                          # <-- Combination of security, definition, and critical updates.
+            'Upgrades'
+            ) # $UpdateCatalog
+
+            $GWU = (Get-WUList $UpdateCatalog[0,1,2,4,7,8] -NotTitle 'Preview').Size
+
+            # TEST NEW IF/ELIF/ELSE STATEMENT
+
+            # If the computer is up to date, but the PSGallery is set to "Trusted".
+            if (($GWU -gt 0) -and $InstallPolicy -eq 'Trusted') {
+                Set-Message -Message 2
+                Deploy-Computer
+            }#End if
+
+            # If the computer is up to date, and PSGallery is set to "Untrusted", launch KeyDeploy.
+            elseif (-not($GWU -gt 0) -and -not($InstallPolicy -eq 'Trusted')) {
+                Set-Message -Message 4
+                Register-MicrosoftKey
+            }#End elseif
+
+            #If the PC still has updates to install.
+            else {
+                Set-Message -Message 3
+                Get-Update
+                Deploy-Computer
+            }#End else
+        } #End if
+
+        # If PSWindowsUpdate is not installed, but NuGet and PSGallery is already been modified by the script, Install PSWindowsUpdate, import and check for updates.
+        elseif ((Get-PackageProvider |  Where-Object { $_.name -eq "Nuget" }).name -contains "NuGet" -and (Get-PSRepository -Name PSGallery).InstallationPolicy -eq 'Trusted') {
+            Write-Output 'The script has detected that NuGet and PSGallery settings were already modified, Installing PSWindowsUpdate'
+            Get-PSWindowsUpdate
+            Get-Update
+            Deploy-Computer
+        } #End elseif
+
+        # Run the script for the first time.
+        else {
+            Write-Verbose -Message "Initializing AutoDeploy for the first time on $env:COMPUTERNAME"
+            Start-Script
+            Get-Update
+            Deploy-Computer
+        } #End else
+    } #PROCESS
+    
+    END {} #END
+}#End function Initialize-AutoDeploy
+
+############### END TEST FUNCTION ###################
+
+Initialize-AutoDeploy_TEST
 
 # Delete the script once it is done.
 Write-Output "`nScript complete! This script will self-destruct in 3 seconds."
