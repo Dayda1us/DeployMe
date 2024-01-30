@@ -21,7 +21,7 @@ Write-Host " ___) |  _ <    | | | |__| |___|  _  | |\  | |_| | |__| |_| | |_| | 
 Write-Host "|____/|_| \_\   |_| |_____\____|_| |_|_| \_|\___/|_____\___/ \____| |_|`n  " -ForegroundColor Green
 Write-Output "#######################################################################"
 Write-Output "#               WINDOWS AUTOMATED DEPLOYMENT SCRIPT v3.5              #"
-Write-Output "#                                ALPHA                                #"
+Write-Output "#                                                                     #"
 Write-Output "#                      DEVELOPED BY CHARLES THAI                      #"
 Write-Output "#######################################################################`n"
 Start-Sleep -seconds 3
@@ -212,7 +212,7 @@ function Register-MicrosoftKey {
             $Description = "Please make sure you're connected to the Key Deploy server at the deployment station. Would you like to launch KeyDeploy now?"
             $Yes = New-Object System.Management.Automation.Host.ChoiceDescription "&Yes", "Launch Key Deploy."
             $No = New-Object System.Management.Automation.Host.ChoiceDescription "&No", "Do not launch Key Deploy at this time. This option will open the KeyDeploy directory."
-            $Shutdown = New-Object System.Management.Automation.Host.ChoiceDescription "&Shutdown", "Shutdown the PC. Use this option if you're deploying a desktop."
+            $Shutdown = New-Object System.Management.Automation.Host.ChoiceDescription "&Shutdown", "Shutdown the PC. Use this option if you're deploying a PC that is away from the deployment station. (e.g. Desktop)"
             $Options = [System.Management.Automation.Host.ChoiceDescription[]]($Yes, $No, $Shutdown)
             $Default = 1    # 0 = Yes, 1 = No, 2 = Shutdown
     
@@ -238,14 +238,20 @@ function Register-MicrosoftKey {
                 #Yes
                 Write-Output "Opening Key Deploy..."
                 if ((Test-Path -Path "$env:WINDIR\MARFO_SCRIPTS\Startup\DTStartup.exe") -eq $true) {
+                    $KeyDeploy = 'DTStartup'
                     try {
                         Invoke-Item -Path "$env:WINDIR\MARFO_SCRIPTS\Startup\DTStartup.exe"
-                        $Process = 'DTStartup'
+                        if ((Get-Process -Name $KeyDeploy -EA SilentlyContinue) -contains 'DTStartup') {
+                            Write-Host "Key Deploy launched successfully!" -ForegroundColor Green
+                        } #End if
+                        <#
+                         $Process = 'DTStartup'
                         Write-Output "Key Deploy opened."
                         do {
                             start-sleep -Seconds 1
                         } while ((Get-Process -name $Process -EA SilentlyContinue).name -contains $Process) #dowhile
-                    }
+                        #>
+                    } #End try
                     catch {
                         Write-Warning 'An error has occurred that could not be resolved. Please open Key Deploy manually.'
                         Write-Host $_ -ForegroundColor Red
@@ -259,7 +265,7 @@ function Register-MicrosoftKey {
             } #{$KDResponse -eq 0}
             { $KDResponse -eq 2 } {
                 #Shutdown PC
-                Write-Warning 'Shutting down using Sysprep audit mode...'
+                Write-Warning 'Shutting down using Sysprep audit mode. Please do not power off the machine manually.'
                 if ((Test-Path -Path "$ENV:WINDIR\SYSTEM32\SYSPREP\SYSPREP.exe") -eq $true) {
                     Set-Location "$ENV:WINDIR\SYSTEM32\SYSPREP\"
                     if ((Get-Process).ProcessName -contains 'sysprep') {
@@ -281,25 +287,29 @@ function Register-MicrosoftKey {
     }# END PROCESS
     END {
         switch ($KDResponse) {
-            { $KDResponse -eq 0 } { #Yes
+            { $KDResponse -eq 0 } {
+                #Yes
                 Write-Host 'The operation was successful.' -ForegroundColor Green
                 Write-Output "`nMake sure to leave a square holographic Microsoft Authorized Refurbisher sticker on the bottom of the unit, or as close to the original Windows sticker as possible."
                 Write-Output "If this is a citzenship PC, only put a Microsoft Office for Citizenship key sticker. Citizenship PCs does not get a holographic sticker.`n"
                 Write-Warning "Please make sure to report the key to the MDOS Smart Client as required under the Microsoft Authorized Refurbisher program."
                 Start-Sleep -Seconds 2
             } #END {$KDResponse -eq 0}
-            { $KDResponse -eq 1 } { #No
+            { $KDResponse -eq 1 } {
+                #No
                 Write-Output 'OK! Skipping product key deployment'
                 if ((Test-Path -Path "$env:WINDIR\MARFO_SCRIPTS\Startup\") -eq $true) {
                     Invoke-Item -Path "$env:WINDIR\MARFO_SCRIPTS\Startup\"
                 } #if ((Test-Path -Path "$env:WINDIR\MARFO_SCRIPTS\Startup\") -eq $true)
             } #END $KDResponse -eq 1
-            { $KDResponse -eq 2 } { #Shutdown PC
+            { $KDResponse -eq 2 } {
+                #Shutdown PC
                 Write-Output 'PC currently shutting down.'
                 start-sleep -Seconds 1
                 exit
             } #END {$KDResponse -eq 2}
-            default { #If KeyDeploy is not found
+            default {
+                #If KeyDeploy is not found
                 Write-Warning "KeyDeploy directory does not exist! Skipping product key deployment."
                 Start-sleep 2
             } #END default
@@ -342,7 +352,7 @@ function Get-Nuget {
                 Write-Warning 'Restarting script'
                 start-sleep 5
                 Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
-                break
+                exit
             } #End Catch
         }
         else {
@@ -414,97 +424,158 @@ function Set-PSGallery {
 } #function Set-PSGallery
 
 # Installs PSWindowsUpdate and imports the module.
-function Install-PSWindowsUpdate {
+function Get-PSWindowsUpdate {
     [CmdletBinding()]
     Param()
 
     BEGIN {
         $PSWU = 'PSWindowsUpdate'
-        Write-Output "Checking for PSWindowsUpdate..."
-    }#BEGIN
+        Write-Output "Checking if $PSWU is installed..."
+
+        # If the module is already installed, import it.
+        if ((Get-InstalledModule).Name -contains $PSWU) {
+            Write-Output "$PSWU is already installed! Importing the module..."
+            try {
+                Import-Module $PSWU
+            } #End try
+            catch {
+                Write-Host $_ -ForegroundColor Red
+                Write-Warning "An error has occurred that could not be resolved. Restarting script..."
+                Start-Sleep -Seconds 3
+                if ((Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat") -eq $true) {
+                    Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
+                } #End if
+                exit
+            } #End catch
+        } #end if
+    } #END BEGIN
 
     PROCESS {
-        try {
-            $Module = (Get-InstalledModule -Name $PSWU -EA SilentlyContinue).name -contains 'PSWindowsUpdate'
-            if ($Module -eq $True) {
-                $Import = (Get-Module -Name PSWindowsUpdate).name -contains "PSWindowsUpdate"
-                Write-Output "$PSWU is already installed. Checking if module is imported..."
-                if ($Import -eq $true) {
-                    Write-Output 'Module is already imported'
-                    Get-Module -Name $PSWU
-                } #End If
-                else {
-                    Import-Module -Name $PSWU
-                    Write-Host -ForegroundColor Green "`nImport complete!`n"
-                    Get-Module -Name $PSWU
-                } #End Else
-            } #End if
-            else {
-                Write-Warning "$PSWU is not installed. Installing PSWindowsUpdate..."
-                Install-Module -Name PSWindowsUpdate -Force
-                Write-Output "$PSWU installed. Importing module..."
-                Import-Module -Name PSWindowsUpdate
-                Write-Host -ForegroundColor Green "`nImport complete!`n"
-            }#End Else
-        } #End Try
-        catch [System.Management.Automation.ActionPreferenceStopException] {
-            Write-Host "$_" -ForegroundColor Red
-            Write-Warning 'Restarting script'
-            start-sleep 5
-            Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
-            break
-        } #End Catch
-        catch {
-            Write-Warning "An error has occurred that could not be resolved"
-            Write-Host $_
-            Write-Warning 'Restarting script'
-            start-sleep 5
-            Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
-            break
-        }#End Catch
-    }#END PROCESS
+        # Install PSWindowsUpdate if it is not installed.
+        if ((Get-InstalledModule).Name -notcontains $PSWU) {
+            Write-Output "Installing $PSWU..."
+            try {
+                Install-Module -Name $PSWU -Force
+                if ((Get-InstalledModule).Name -contains $PSWU) {
+                    Write-Output "$PSWU installed! Importing the module..."
+                    try {
+                        Import-Module -Name $PSWU -Force
+                    } #End try
+                    catch {
+                        Write-Host $_ -ForegroundColor Red
+                        Write-Warning "An error has occurred that could not be resolved. Restarting script..."
+                        Start-Sleep -Seconds 3
+                        if ((Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat") -eq $true) {
+                            Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
+                        } #End if
+                        exit
+                    } #End catch
+                } #End if
+            } #end try
+            catch {
+                Write-Host $_ -ForegroundColor Red
+                Write-Warning "An error has occurred that could not be resolved. Restarting script..."
+                Start-Sleep -Seconds 3
+                if ((Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat") -eq $true) {
+                    Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
+                } #End if
+                exit
+            } #End catch
+        } #End if
+    } #END PROCESS
 
-    END {} #END
-} #function Install-PSWindowsUpdate
+    END {
+        if ((Get-Module).Name -contains $PSWU) {
+            Write-Output 'Module imported!'
+            Start-Sleep -Seconds 5
+            Clear-Host
+        } #end if
+        else {
+            Write-Warning "PSWindowsUpdate is not imported! Restarting script..."
+            Start-Sleep -Seconds 3
+            if ((Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat") -eq $true) {
+                Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
+            } #End if
+            exit
+        } #end else
+    } #END
+} #End function
 
 ###########################
 #    CHECK FOR UPDATES    #
 ###########################
-function Get-MicrosoftUpdate {
+function Request-MicrosoftUpdate {
     [CmdletBinding()]
     Param()
 
     BEGIN {
-        Write-Output "CHECKING FOR UPDATES"
+        if ((Get-Module).Name -contains 'PSWindowsUpdate') {
+            Write-Output "CHECKING FOR UPDATES"
+        } #end if
+        else {
+            Write-Warning 'PSWindowsUpdate is not imported! Restarting script...'
+            Start-Sleep -Seconds 3
+            if ((Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat") -eq $true) {
+                Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
+            } #End if
+            exit
+        } #end if
     } #END BEGIN
     PROCESS {
+
+        # Update Categories
+        $UpdateCatalog = @(
+            'Critical Updates',                 # <-- 20XX-XX Update for Windows XX Version 2XXX for [ANY ARCHITECTURE]-based Systems. Includes Microsoft Office updates.
+            'Definition Updates',               # <-- AKA Security Intelligence Updates.
+            'Drivers',                          # <-- Self-explantory.
+            'Feature Packs', 
+            'Security Updates',                 # <-- Cumulative Updates also counts as "Security Updates".
+            'Service Packs', 
+            'Tools', 
+            'Update Rollups',                   # <-- Windows Malicious Software Removal Tool.
+            'Updates',                          # <-- Combination of security, definition, and critical updates.
+            'Upgrades'
+            )
+
         try {
-            while ((Get-WUList).Size -gt 0) {
-                Get-WUList -AcceptAll -Install -AutoReboot | Format-List Title, KB, Size, Status, RebootRequired
+            # Download and install drivers. Exclude preview updates.
+            while ((Get-WUList -Category $UpdateCatalog[2] -NotTitle 'Preview').Size -gt 0) {
+                Get-WUList -Category $UpdateCatalog[2] -NotTitle 'Preview' -AcceptAll -Install -AutoReboot | Format-List Title, KB, Size, Status, RebootRequired
             } #End while
-    
-            $PSWUReboot = Get-WURebootStatus -Silent
-            if (($PSWUReboot -eq $true)) {
-                Write-Output 'One or more updates require a reboot.'
-                Start-sleep -Seconds 1
-                exit
-            }#End if
+
+            # Download critical updates, virus definitions, and update rollups. Exclude preview updates.
+            while ((Get-WUList -Category $UpdateCatalog[0,1,7]).Size -gt 0) {
+                Get-WUList -Category $UpdateCatalog[0,1,7] -NotTitle 'Preview' -AcceptAll -Install -AutoReboot | Format-List Title, KB, Size, Status, RebootRequired
+            } #End while
+
+
+            # Download Security/Cumulative Updates. Exclude preview updates.
+            while ((Get-WUList -Category $UpdateCatalog[4]).Size -gt 0) {
+                Get-WUList -Category $UpdateCatalog[4] -NotTitle 'Preview' -AcceptAll -Install -AutoReboot | Format-List Title, KB, Size, Status, RebootRequired
+            } #End while
         } #End try
-        catch [System.Management.Automation.CommandNotFoundException] {
-            Write-Host $_.Exception.Message
+        catch {
+            Write-Host $_ -ForegroundColor Red
             Write-Warning "A fatal error has occurred. This may be caused by PSWindowsUpdate not being properly imported."
             Write-Output "`nRestarting script..."
             Start-Sleep -Seconds 5
-            if (Test-Path -Path Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat" -eq $true) {
+            if ((Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat") -eq $true) {
                 Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
-            } #if (Test-Path -Path Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat" -eq $true)
+            } #End if
             exit
         } #End Catch
     } #END PROCESS
     END {
-        Set-Message -Message 2
+        if ((-not(Get-WUList -Category $UpdateCatalog[2] -NotTitle 'Preview').Size -gt 0) -and (-not(Get-WUList -Category $UpdateCatalog[0,1,7]).Size -gt 0) -and (-not(Get-WUList -Category $UpdateCatalog[4]).Size -gt 0)) {
+            Set-Message -Message 2
+        } #end if
+        elseif ((Get-WURebootStatus -Silent) -eq $true) {
+            Write-Output 'One or more updates require a reboot.'
+            Start-sleep -Seconds 1
+            exit
+        } #end elseif
     } #END
-} #function Get-MicrosoftUpdate
+} # end function Request-MicrosoftUpdate
 
 ################
 #  DEPLOYMENT  #
@@ -540,30 +611,40 @@ function Remove-RefurbAccount {
 
 # Start the script by setting the correct date and time. Then install the PSWindowsUpdate to begin retrieving updates via PowerShell.
 function Start-Script {
+    Clear-Host
     Write-Output "STAGE 1: RETRIEVING THE REQUIRED MODULE`n"
+
     # Verify the date and time. Change the timezone according to your location.
     Sync-Time -Timezone 'Pacific Standard Time'
 
     # Install PSWindowsUpdate
     Get-Nuget
     Set-PSGallery -InstallationPolicy 'Trusted'
-    Install-PSWindowsUpdate
+    Get-PSWindowsUpdate
     Set-Message -Message 1
 } #End function Start-Script
 
 # Accept, Download, Install, and Reboot updates using PSWindowsUpdate.
 function Get-Update {
     Write-Output "STAGE 2: UPDATES`n"
-    Get-MicrosoftUpdate
+    Request-MicrosoftUpdate
 } #End function Get-Update
 
 function Deploy-Computer {
-    Write-Output "FINAL STAGE: DEPLOYMENT`n"
-    Set-PSGallery -InstallationPolicy 'Untrusted'
-    Remove-RefurbAccount
-    Register-MicrosoftKey
+    # If PSGallery is set to Untrusted and "Refurb" is already removed, launch KeyDeploy.
+    if (((Get-PSRepository -Name PSGallery).InstallationPolicy -eq "Untrusted") -and -not(Get-LocalUser -Name "Refurb").Name) {
+        Write-Output "FINAL STAGE: DEPLOYMENT`n"
+        Write-Output "The settings were already set back to its original setting. Launching KeyDeploy..."
+        Start-Sleep -Seconds 3
+        Register-MicrosoftKey
+    } #end if
+    else {
+        Write-Output "FINAL STAGE: DEPLOYMENT`n"
+        Set-PSGallery -InstallationPolicy 'Untrusted'
+        Remove-RefurbAccount
+        Register-MicrosoftKey
+    } #end else
 } #End function Deploy-Computer
-
 function Initialize-AutoDeploy {
     [CmdletBinding()]
     Param()
@@ -578,6 +659,8 @@ function Initialize-AutoDeploy {
         Write-Output "Initializing script...`n"
         $PSWU = (Get-InstalledModule).name -contains 'PSWindowsUpdate'
         Start-Sleep -Seconds 2
+
+        # If PSWindowsUpdate is already installed on the machine, import the module then check for updates.
         if ($PSWU -eq $true) {
             Write-Output "AutoDeploy has detected that PSWindowsUpdate has already been installed. Importing the PSWindowsUpdate module..."
             Start-Sleep -Seconds 2
@@ -587,12 +670,11 @@ function Initialize-AutoDeploy {
                 if ($PSWUModule -eq $true) {
                     Write-Output 'Module imported'
                     Get-Module
-                } #if ($PSWUModule -eq $true)
+                } #End if
             } #End try
             catch {
-                Write-Warning 'An error occurred that could not be resolved.'
                 Write-Host $_ -ForegroundColor Red
-                Write-Warning 'Restarting script...'
+                Write-Warning 'An error occurred that could not be resolved. Restarting script...'
                 Start-sleep 2
                 if (Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat" -eq $true) {
                     Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
@@ -602,34 +684,57 @@ function Initialize-AutoDeploy {
     
             Write-Verbose -Message "$env:COMPUTERNAME is checking for updates."
             Write-Output "`nChecking for updates..."
-            #$PSGallery = (Get-PSRepository -name PSGallery).name -eq "PSGallery"
             $InstallPolicy = (Get-PSRepository -Name PSGallery).InstallationPolicy
-            $GWU = (Get-WUList).Size
 
-            switch ($GWU) {
-                # If the computer is up to date, but the PSGallery is set to "Trusted".
-                { -not($GWU -gt 0) -and $InstallPolicy -eq "Trusted" } {
-                    Set-Message -Message 2
-                    Deploy-Computer
-                } #End -not($GWU -gt 0) -and $PSGallery -eq $false -and $InstallPolicy -eq "Untrusted"
+            # Update Categories
+            $UpdateCatalog = @(
+            'Critical Updates',                 # <-- 20XX-XX Update for Windows XX Version 2XXX for [ANY ARCHITECTURE]-based Systems.
+            'Definition Updates',               # <-- AKA Security Intelligence Updates.
+            'Drivers',                          # <-- Self-explantory.
+            'Feature Packs', 
+            'Security Updates',                 # <-- Cumulative Updates also counts as "Security Updates".
+            'Service Packs', 
+            'Tools', 
+            'Update Rollups',                   # <-- Windows Malicious Software Removal Tool.
+            'Updates',                          # <-- Combination of security, definition, and critical updates.
+            'Upgrades'
+            ) # $UpdateCatalog
 
-                # If the computer is up to date, and PSGallery is set to "Untrusted", launch KeyDeploy.
-                { -not($GWU -gt 0) -and -not($InstallPolicy -eq "Trusted") } {
-                    Set-Message -Message 4
-                    Register-MicrosoftKey
-                } #End -not($GWU -gt 0) -and -not($InstallPolicy -eq "Trusted")
+            $GWU = (Get-WUList -Category $UpdateCatalog[0,1,2,4,7,8] -NotTitle 'Preview').Size
 
-                #If the PC still has updates to install.
-                default {  
-                    Set-Message -Message 3
-                    Get-Update
-                    Deploy-Computer
-                } #End default
-            } #End switch ($GWU)
+            # TEST NEW IF/ELIF/ELSE STATEMENT
+
+            # If the computer is up to date, but the PSGallery is set to "Trusted".
+            if (-not($GWU -gt 0) -and $InstallPolicy -eq 'Trusted') {
+                Set-Message -Message 2
+                Deploy-Computer
+            }#End if
+
+            # If the computer is up to date, and PSGallery is set to "Untrusted", launch KeyDeploy.
+            elseif (-not($GWU -gt 0) -and -not($InstallPolicy -eq 'Trusted')) {
+                Set-Message -Message 4
+                Register-MicrosoftKey
+            }#End elseif
+
+            #If the PC still has updates to install.
+            else {
+                Set-Message -Message 3
+                Get-Update
+                Deploy-Computer
+            }#End else
         } #End if
+
+        # If PSWindowsUpdate is not installed, but NuGet and PSGallery is already been modified by the script, Install PSWindowsUpdate, import and check for updates.
+        elseif ((Get-PackageProvider |  Where-Object { $_.name -eq "Nuget" }).name -contains "NuGet" -and (Get-PSRepository -Name PSGallery).InstallationPolicy -eq 'Trusted') {
+            Write-Output 'The script has detected that NuGet and PSGallery settings were already modified, Installing PSWindowsUpdate'
+            Get-PSWindowsUpdate
+            Get-Update
+            Deploy-Computer
+        } #End elseif
+
+        # Run the script for the first time.
         else {
             Write-Verbose -Message "Initializing AutoDeploy for the first time on $env:COMPUTERNAME"
-            Clear-Host
             Start-Script
             Get-Update
             Deploy-Computer
@@ -637,7 +742,7 @@ function Initialize-AutoDeploy {
     } #PROCESS
     
     END {} #END
-}# function Initialize-AutoDeploy
+}#End function Initialize-AutoDeploy
 
 Initialize-AutoDeploy
 
