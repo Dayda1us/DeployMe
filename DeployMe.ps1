@@ -51,15 +51,16 @@ Clear-Host
 # Enter an IP or website to ping.
 $TestWebsite = '3rtechnology.com'
 
-<# Limit the script to run on a certain Windows operating system based on the build number.
+<# Limit the script to run on a certain Windows operating system based on the build number. The oldest Windows OS is Windows 7
     Example:
-    - Windows 7 = 7601
-    - Windows 8 = 9002
-    - Windows 10 (1507) = 10240
+    - Windows 7 to 10 = 7601
     - Windows 11 = 22000 or later
 
 #>
 $PreferredOSBuild = 22000
+
+# Set the timezone of your location and automatically sync the date/time.
+$Time = 'Pacific Standard Time'
 
 #############################
 #   RUN MICROSOFT UPDATES   #
@@ -84,7 +85,7 @@ $UpdateCatalog = @(
 )
 
 
-# List the updates you want the PC to download and install by the Update Categories above.
+# List the updates you want the PC to download and install by the Update Categories above. (Default settings are: 2, 7, 8).
 $Category = $UpdateCatalog[2,7,8]
 
 # Exclude any updates that causes Microsoft Update to fail based by their Knowledge Base (KB) ID.
@@ -92,9 +93,9 @@ $ExcludeKB = @(
 
 )
 
-<# Exclude Preview Updates.
-- Removing the hashtag (#) before the dollar sign ($) will include preview updates. (This is the default option)
-- Adding the hashtag(#) before the dollar sign ($) will exclude preview updates.
+<# Exclude Preview updates.
+- Removing the hashtag (#) before the dollar sign ($) will exclude preview updates. (This is the default option)
+- Adding the hashtag(#) before the dollar sign ($) will include preview updates.
 #> 
 $NoPreview = 'Preview'
 
@@ -102,8 +103,11 @@ $NoPreview = 'Preview'
 #        DEPLOYMENT         #
 #############################
 
-# Specify the previous username.
+# Specify the previous username. 
 $Username = 'Refurb'
+
+# Skip Sysprep OOBE. (1 = Skip Sysprep, 0 = Sysprep)
+$skipOOBE = 0
 
 ###############################################
 #          Editable Variables End             #
@@ -113,6 +117,102 @@ $Username = 'Refurb'
 # No edits should take place beyond this comment unless you know what you're doing!  #
 # All changes should be made in the Variables section.                               #
 ######################################################################################
+
+function Sync-Time {
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory)]
+        [String]$Timezone
+    )
+
+    BEGIN {
+        # Grab local computer name.
+        $ComputerName = $env:COMPUTERNAME
+
+        Write-Verbose "Retrieving the timezone and preferred timezone."
+        Write-Output 'Checking the current timezone...'
+        # Checks the current timezone of the computer
+        $CurrentTimeZone = (Get-TimeZone).Id
+
+        # The preferred timezone.
+        $PreferredTimeZone = (Get-TimeZone -ID $Timezone).Id
+
+    } #BEGIN
+    PROCESS {
+        # Set the preferred Timezone if current timezone is set incorrectly.
+        Write-Verbose "[BEGIN] Verifying the timezone for $ComputerName"
+        if ($CurrentTimeZone -eq $PreferredTimeZone) {
+            Write-Output "Timezone is already set to $PreferredTimeZone`n"
+            Get-TimeZone
+        }
+        else {
+            Set-TimeZone -ID $PreferredTimeZone
+            Write-Output "Timezone changed to $PreferredTimeZone`n"
+            Get-TimeZone
+        } #if/else
+
+        # Name of the Windows Time service
+        $WindowsTime = 'W32Time'
+
+        Write-Output "Checking if $WindowsTime is running..."
+        start-sleep 2
+        if ((Get-Service -Name $WindowsTime).Status -eq 'Running') {
+            Write-Output "$WindowsTime is already running. Syncing local time..."
+            Get-Service -Name W32Time
+            try {
+                Write-Verbose "[PROCESS] Syncing the local time using 'w32tm /resync' on $ComputerName"
+                Write-Output "Syncing local time on $ComputerName"
+                start-sleep -Seconds 2
+                Invoke-Command -ScriptBlock { w32tm.exe /resync } -EA Stop
+                Get-Date
+            }
+            catch {
+                Write-Warning "An error has occurred that could not be resolved."
+                Write-Host $_ -ForegroundColor Red
+
+                # Restart the script if an error occurs
+                Write-Output 'Restarting script...'
+                Start-Sleep -Seconds 5
+                Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
+                exit
+            } #try/catch
+        }
+        else {
+            Write-Output "Starting $WindowsTime..."
+            Start-Sleep -seconds 2
+            try {
+                Write-Verbose "[PROCESS] Starting $WindowsTime on $ComputerName"
+                Start-Service -Name $WindowsTime -EA Stop
+                # If "W32Time" started successfully, run the "w32tm /resync" command.
+                if ((Get-Service -Name $WindowsTime).Status -eq 'Running') {
+                    Write-Verbose "[PROCESS] Syncing the local time using 'w32tm /resync' on $ComputerName"
+                    Write-Output "Syncing local time on $ComputerName"
+                    start-sleep -Seconds 2
+                    Invoke-Command -ScriptBlock { w32tm.exe /resync } -EA Stop
+                } #if (Get-Service -Name $WindowsTime).Status -eq 'Started')
+            }
+            catch {
+                Write-Warning "An error has occurred that could not be resolved."
+                Write-Host $_ -ForegroundColor Red
+
+                # Restart the script if an error occurs
+                Write-Output 'Restarting script...'
+                Start-Sleep -Seconds 5
+                Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
+                exit
+            } #try/catch
+        } #if/else ((Get-Service -Name $WindowsTime).Status -eq 'Running')
+    } #PROCESS
+    END {
+        Write-Verbose "[END] Verifying that the timezone and today's date is synced."
+        $CurrentTimeZone = (Get-TimeZone).Id
+        if ($CurrentTimeZone -eq $PreferredTimeZone) {
+            Write-Host 'The operation was successful.' -ForegroundColor Green
+            start-sleep 2
+        } #if ($CurrentTimeZone -eq $PreferredTimeZone)
+    } #END
+} #function Sync-Time
+
 
 ########################
 #  PREREQUISITE CHECK  #
@@ -145,7 +245,7 @@ function Test-InternetConnection {
             Clear-Host
         } # End if
         else {
-            # If failed 5 times, display a warning message and open up the directory to the batch file and abort script.
+            # If failed 5 times, display a warning message and open up the directory to the batch file, and abort script.
             Write-Verbose -Message "[END] $env:COMPUTERNAME could not establish an Internet connection."
             Write-Warning "Could not establish an Internet connection. Please check your network configuration and try again."
             if ((Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/") -eq $true) {
@@ -163,7 +263,7 @@ function Request-OSBuild {
     Param()
 
     BEGIN {
-        Write-Output 'Checking the host operating system.'
+        Write-Output 'Checking the host operating system...'
         # Retrieve current host operating system
         $CurrentOS = (Get-CimInstance -ClassName Win32_OperatingSystem).BuildNumber
 
@@ -174,8 +274,16 @@ function Request-OSBuild {
     } #END BEGIN
 
     PROCESS {
+        if ($RequiredOS -ge 7600 -and -not(-ge 22000)) {
+            $Windows = 'The operating system you are running is unsupported. Please make sure your PC is running at least Windows 7 or later.'
+        } #End if
+        elseif ($RequiredOS -lt 22000) {
+            $Windows = 'The operating system you are running is unsupported. Please make sure your PC is running at least Windows 11 or later.'
+        } #End elseif
+
+        # Warn the user if the host operating system does not meet the requirements
         if ($CurrentOS -lt $RequiredOS) {
-            Write-Warning "This operating system does not meet the requirements. Please "
+            Write-Warning $Windows
             start-sleep -Seconds 3
             exit 
         } #End if 
@@ -186,7 +294,9 @@ function Request-OSBuild {
 
     END {
         if ($CurrentOS -ge $RequiredOS) {
-            Write-Output ''
+            Write-Host 'Prerequisite check complete!' -ForegroundColor Green
+            Start-Sleep -Seconds 2
+            Clear-Host
         }
     } #END
 }# End function Request-OSBuild
@@ -456,9 +566,45 @@ function Remove-ReferenceAccount {
     END {}#END
 } #End function Remove-RefurbAccount
 
+# Start the script by setting the correct date and time. Then install the PSWindowsUpdate to begin retrieving updates via PowerShell.
+function Start-Script {
+    Clear-Host
+    Write-Output "STAGE 1: RETRIEVING THE REQUIRED MODULE`n"
 
+    # Verify the date and time. Change the timezone according to your location.
+    Sync-Time -Timezone $Time
 
+    # Install PSWindowsUpdate
+    Get-Nuget
+    Set-PSGallery -InstallationPolicy 'Trusted'
+    Get-PSWindowsUpdate
+} #End function Start-Script
 
+# Accept, Download, Install, and Reboot updates using PSWindowsUpdate.
+function Get-Update {
+    Write-Output "STAGE 2: UPDATES`n"
+    Request-MicrosoftUpdate
+} #End function Get-Update
+
+function Deploy-Computer {
+    # If PSGallery is set to Untrusted and "Refurb" is already removed, launch KeyDeploy.
+    if (((Get-PSRepository -Name PSGallery).InstallationPolicy -eq "Untrusted") -and -not(Get-LocalUser -Name "Refurb").Name) {
+        Write-Output "FINAL STAGE: DEPLOYMENT`n"
+        Write-Output "The settings were already set back to its original setting."
+        Start-Sleep -Seconds 3
+    } #end if
+    else {
+        Write-Output "FINAL STAGE: DEPLOYMENT`n"
+        Remove-RefurbAccount
+        Set-PSGallery -InstallationPolicy 'Untrusted'
+        if ($skipOOBE -eq 1) {
+            break
+        } #end if
+        else {
+            #OOBEMachine
+        } #end else
+    } #end else
+} #End function Deploy-Computer
 
 
 
