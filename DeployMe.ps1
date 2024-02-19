@@ -4,7 +4,7 @@
 #                                                                                   #
 #       Leverages PSWindowsUpdate to install drivers and updates                    #
 #       and deploy Microsoft Windows product key for refurbish PCs                  #
-#       via Keydeploy.                                                              #
+#       via Key Deploy.                                                              #
 #                                                                                   #
 #                           Developed by Charles Thai                               #
 #####################################################################################
@@ -22,12 +22,36 @@
 # This script must be started with elevated user rights.
 #Requires -RunAsAdministrator
 
-Clear-Host
-Write-Host " _____ ____    _____ _____ ____ _   _ _   _  ___  _     ___   ______   __" -ForegroundColor Green
-Write-Host "|___ /|  _ \  |_   _| ____/ ___| | | | \ | |/ _ \| |   / _ \ / ___\ \ / /" -ForegroundColor Green
-Write-Host "  |_ \| |_) |   | | |  _|| |   | |_| |  \| | | | | |  | | | | |  _ \ V / " -ForegroundColor Green
-Write-Host " ___) |  _ <    | | | |__| |___|  _  | |\  | |_| | |__| |_| | |_| | | |  " -ForegroundColor Green
-Write-Host "|____/|_| \_\   |_| |_____\____|_| |_|_| \_|\___/|_____\___/ \____| |_|`n  " -ForegroundColor Green
+Write-Host " 
+                   ***      ***************                      
+                 ***    *********           **                   
+                ***   *******                                    
+              ****  ******       ******************              
+             ***********     +**+@%%%@****************#          
+             *********                       *************       
+            *********                            *+*********     
+            ********                               #**********   
+            *******                                  **********  
+            ******                                    #********* 
+            +*****                                     ***** ****
+            *****                                       ****#  **
+            *****                                    +#  ****   *
+            +*****                                   **  ****   #
+             *****                                   *+  #****   
+              ****                                  ***   ****   
+              *****                                 ***   ****   
+                ****                               ***#   **+    
+            *    ****                             ****   #***    
+             +    ****                           *****   ***     
+             *+     ***                         ****+    **      
+              ***     *+                      ******    **       
+                ***                         #******    **        
+                *****#                  *********   **          
+                   #********#       #************  @#            
+                      *************************                  
+                           *****++++*********                    
+                                  *********                      
+                           #************                         `n" -ForegroundColor Green                
 Write-Output "#######################################################################"
 Write-Output "#                            DEPLOY ME v4.0                           #"
 Write-Output "#                           WORK IN PROGRESS                          #"
@@ -51,14 +75,6 @@ Clear-Host
 # Enter an IP or website to ping.
 $TestWebsite = '3rtechnology.com'
 
-<# Limit the script to run on a certain Windows operating system based on the build number. The oldest Windows OS is Windows 7
-    Example:
-    - Windows 7 to 10 = 7601
-    - Windows 11 = 22000 or later
-
-#>
-$PreferredOSBuild = 22000
-
 # Set the timezone of your location and automatically sync the date/time.
 $Time = 'Pacific Standard Time'
 
@@ -74,9 +90,9 @@ $UpdateCatalog = @(
     'Feature Packs',                    # <-- [3] New product functionality that is first distributed outside the context of a product release and that is typically included in the next full product release.
     'Security Updates',                 # <-- [4] Cumulative Updates also counts as "Security Updates".
 
-    'Service Packs',                    # <-- [5] A tested, cumulative set of all hotfixes, security updates, critical updates, and updates. Additionally, service packs
-                                                # may contain additional fixes for problems that are found internally since the release of the product. Service packs may
-                                                # also contain a limited number of customer-requested design changes or features.
+    'Service Packs',                   <# <-- [5] A tested, cumulative set of all hotfixes, security updates, critical updates, and updates. Additionally, service packs
+                                                  may contain additional fixes for problems that are found internally since the release of the product. Service packs may
+                                                  also contain a limited number of customer-requested design changes or features. #>
                                                 
     'Tools',                            # <-- [6] A utility or feature that helps complete a task or set of tasks.
     'Update Rollups',                   # <-- [7] Windows Malicious Software Removal Tool.
@@ -103,11 +119,12 @@ $NoPreview = 'Preview'
 #        DEPLOYMENT         #
 #############################
 
-# Specify the previous username. 
+# If you previously created a local administrator account, you may choose the option to remove the account.  (1 = Skip, 0 = Remove account)
+$skipAccountRemoval = 1 
 $Username = 'Refurb'
 
-# Skip Sysprep OOBE. (1 = Skip Sysprep, 0 = Sysprep)
-$skipOOBE = 0
+# Skip Sysprep OOBE. (1 = Skip Sysprep, 0 = Sysprep PC)
+$skipOOBE = 1
 
 ###############################################
 #          Editable Variables End             #
@@ -117,6 +134,43 @@ $skipOOBE = 0
 # No edits should take place beyond this comment unless you know what you're doing!  #
 # All changes should be made in the Variables section.                               #
 ######################################################################################
+function Set-Message {
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory = $true)]
+        [int]$Message
+    )
+
+    $SelectedNumber = $Message
+    [int[]]$numbers = (1, 2, 3, 4)
+
+    switch ($Number) {
+        { $SelectedNumber -eq $numbers[0] } {
+            Write-Output "You are now ready to install updates"
+            Start-Sleep -Seconds 5
+            Clear-Host
+        }
+        { $SelectedNumber -eq $numbers[1] } {
+            Write-Host "`nYour PC is up to date" -ForegroundColor Green
+            Write-Output "Preparing for deployment..."
+            Start-Sleep -seconds 5
+            Clear-Host
+        }
+        { $SelectedNumber -eq $numbers[2] } {
+            Write-Output "`nYour PC has updates to install."
+            Start-sleep -Seconds 2
+            Clear-Host
+        }
+        { $SelectedNumber -eq $numbers[3] } {
+            Write-Output 'Your PC is up to date! Preparing to Sysprep machine...'
+            Start-Sleep -Seconds 5
+            Clear-Host
+        }
+        default {
+            Write-Warning "Invalid message number. Valid numbers are $numbers"
+        }
+    } #switch
+}#end function Set-Message
 
 function Sync-Time {
     [CmdletBinding()]
@@ -256,50 +310,6 @@ function Test-InternetConnection {
         } # End else
     } #END 
 }#function Test-InternetConnection
-
-
-function Request-OSBuild {
-    [CmdletBinding()]
-    Param()
-
-    BEGIN {
-        Write-Output 'Checking the host operating system...'
-        # Retrieve current host operating system
-        $CurrentOS = (Get-CimInstance -ClassName Win32_OperatingSystem).BuildNumber
-
-        # Preferred operating system
-        $RequiredOS = $PreferredOSBuild
-
-        start-sleep -Seconds 3
-    } #END BEGIN
-
-    PROCESS {
-        if ($RequiredOS -ge 7600 -and -not(-ge 22000)) {
-            $Windows = 'The operating system you are running is unsupported. Please make sure your PC is running at least Windows 7 or later.'
-        } #End if
-        elseif ($RequiredOS -lt 22000) {
-            $Windows = 'The operating system you are running is unsupported. Please make sure your PC is running at least Windows 11 or later.'
-        } #End elseif
-
-        # Warn the user if the host operating system does not meet the requirements
-        if ($CurrentOS -lt $RequiredOS) {
-            Write-Warning $Windows
-            start-sleep -Seconds 3
-            exit 
-        } #End if 
-        else {
-            continue
-        } #end else
-    } #END PROCESS
-
-    END {
-        if ($CurrentOS -ge $RequiredOS) {
-            Write-Host 'Prerequisite check complete!' -ForegroundColor Green
-            Start-Sleep -Seconds 2
-            Clear-Host
-        }
-    } #END
-}# End function Request-OSBuild
 
 
 #############################
@@ -592,34 +602,152 @@ function Deploy-Computer {
         Write-Output "FINAL STAGE: DEPLOYMENT`n"
         Write-Output "The settings were already set back to its original setting."
         Start-Sleep -Seconds 3
+        if ($skipOOBE -eq 0) {
+            Write-Output "Preparing Sysprep using Out of Box Experience (OOBE)"
+            start-sleep -Seconds 5
+            try {
+                if ((Test-Path $env:WINDIR\system32\sysprep) -eq $true) {
+                    Set-Location $env:WINDIR\system32\sysprep
+                    #Invoke-Command -ScriptBlock { .\sysprep.exe /oobe /quit}
+                } #end if
+            } #end try
+            catch {
+                Write-Warning "An error has occurred that could not be resolved! Please run Sysprep manually."
+                Write-Host $_ -ForegroundColor Red
+                if ((Test-Path $env:WINDIR\system32\sysprep) -eq $true) {
+                    Invoke-Item $env:WINDIR\system32\sysprep
+                } #end if
+            }
+        } #end if
     } #end if
     else {
         Write-Output "FINAL STAGE: DEPLOYMENT`n"
-        Remove-RefurbAccount
         Set-PSGallery -InstallationPolicy 'Untrusted'
-        if ($skipOOBE -eq 1) {
-            break
+        if ($skipAccountRemoval -eq 0) {
+            Remove-RefurbAccount
         } #end if
-        else {
-            #OOBEMachine
-        } #end else
+        if ($skipOOBE -eq 0) {
+            Write-Output "Preparing Sysprep using Out of Box Experience (OOBE)"
+            start-sleep -Seconds 5
+            try {
+                if ((Test-Path $env:WINDIR\system32\sysprep) -eq $true) {
+                    Set-Location $env:WINDIR\system32\sysprep
+                    #Invoke-Command -ScriptBlock { .\sysprep.exe /oobe /quit}
+                } #end if
+            } #end try
+            catch {
+                Write-Warning "An error has occurred that could not be resolved! Please run Sysprep manually."
+                Write-Host $_ -ForegroundColor Red
+                if ((Test-Path $env:WINDIR\system32\sysprep) -eq $true) {
+                    Invoke-Item $env:WINDIR\system32\sysprep
+                } #end if
+            }
+        } #end if
     } #end else
 } #End function Deploy-Computer
+function Start-DeployMe {
+    [CmdletBinding()]
+    Param()
+    
+    BEGIN {
+        # Test for internet connectivity before running the script.
+        Test-InternetConnection
 
+    } #BEGIN
 
+    PROCESS {
+        Write-Verbose -Message "Checking if this script was previously ran on $ENV:COMPUTERNAME"
+        Write-Output "Initializing script...`n"
+        $PSWU = (Get-InstalledModule).name -contains 'PSWindowsUpdate'
+        Start-Sleep -Seconds 2
+
+        # If PSWindowsUpdate is already installed on the machine, import the module then check for updates.
+        if ($PSWU -eq $true) {
+            Write-Output "DeployMe has detected that PSWindowsUpdate has already been installed. Importing the PSWindowsUpdate module..."
+            Start-Sleep -Seconds 2
+            try {
+                Import-Module 'PSWindowsUpdate' -EA Stop
+                $PSWUModule = (Get-Module).Name -contains 'PSWindowsUpdate'
+                if ($PSWUModule -eq $true) {
+                    Write-Output 'Module imported'
+                    Get-Module
+                } #End if
+            } #End try
+            catch {
+                Write-Host $_ -ForegroundColor Red
+                Write-Warning 'An error occurred that could not be resolved. Restarting script...'
+                Start-sleep 2
+                if (Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat" -eq $true) {
+                    Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
+                } #End if
+                exit
+            } #End catch
+    
+            Write-Verbose -Message "$env:COMPUTERNAME is checking for updates."
+            Write-Output "`nChecking for updates..."
+            $InstallPolicy = (Get-PSRepository -Name PSGallery).InstallationPolicy
+            $GWU = (Get-WUList -Category $Category -NotTitle $NoPreview -NotKBArticleID $ExcludeKB).Size
+
+            # If the computer is up to date, but the PSGallery is set to "Trusted".
+            if (-not($GWU -gt 0) -and $InstallPolicy -eq 'Trusted') {
+                Set-Message -Message 2
+                Deploy-Computer
+            }#End if
+
+            elseif (-not(($GWU -gt 0) -and ($InstallPolicy -eq 'Trusted')) -and ($skipOOBE -eq 0)) {
+                Set-Message -Message 4
+            } #End elseif
+
+            #If the PC still has updates to install.
+            else {
+                Set-Message -Message 3
+                Get-Update
+                Deploy-Computer
+            }#End else
+        } #End if
+
+        # If PSWindowsUpdate is not installed, but NuGet and PSGallery is already been modified by the script, Install PSWindowsUpdate, import and check for updates.
+        elseif ((Get-PackageProvider |  Where-Object { $_.name -eq "Nuget" }).name -contains "NuGet" -and (Get-PSRepository -Name PSGallery).InstallationPolicy -eq 'Trusted') {
+            Write-Output 'The script has detected that NuGet and PSGallery settings were already modified, Installing PSWindowsUpdate'
+            Get-PSWindowsUpdate
+            Get-Update
+            Deploy-Computer
+        } #End elseif
+
+        # Run the script for the first time.
+        else {
+            Write-Verbose -Message "Initializing AutoDeploy for the first time on $env:COMPUTERNAME"
+            Start-Script
+            Get-Update
+            Deploy-Computer
+        } #End else
+    } #PROCESS
+    
+    END {
+        if ($skipOOBE -eq 0) {
+            Write-Output "Preparing Sysprep using Out of Box Experience (OOBE)"
+            start-sleep -Seconds 5
+            try {
+                if ((Test-Path $env:WINDIR\system32\sysprep) -eq $true) {
+                    Set-Location $env:WINDIR\system32\sysprep
+                    #Invoke-Command -ScriptBlock { .\sysprep.exe /oobe /quit}
+                } #end if
+            } #end try
+            catch {
+                Write-Warning "An error has occurred that could not be resolved! Please run Sysprep manually."
+                Write-Host $_ -ForegroundColor Red
+                if ((Test-Path $env:WINDIR\system32\sysprep) -eq $true) {
+                    Invoke-Item $env:WINDIR\system32\sysprep
+                } #end if
+            }
+        } #end if
+    } #END
+}#End function Start-DeployMe
+
+Start-DeployMe
 
 # Delete the script once it is done.
-Write-Output "`nScript complete! This script will self-destruct in 3 seconds."
-3..1 | ForEach-Object {
-    If ($_ -gt 1) {
-        "$_ seconds"
-    }
-    Else {
-        "$_ second"
-    }
-    Start-Sleep -Seconds 1
-} #5..1 | ForEach-Object
-Write-Output "Script deleted!"
+Write-Output "`nScript complete!"
 Invoke-Expression 'cmd /c start powershell -Command {Write-Output "Uninstalling PSWindowsUpdate..." ; Uninstall-Module -Name PSWindowsUpdate}'
 Remove-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat" -Force
 Remove-Item -Path $MyInvocation.MyCommand.Source -Force
