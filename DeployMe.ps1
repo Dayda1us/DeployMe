@@ -84,25 +84,25 @@ $Time = 'Pacific Standard Time'
 
 # Update Categories
 $UpdateCatalog = @(
-    'Critical Updates',                 # <-- [0] 20XX-XX Update for Windows XX Version 2XXX for [ANY ARCHITECTURE]-based Systems. Includes Microsoft Office updates.
-    'Definition Updates',               # <-- [1] AKA Security Intelligence Updates.
-    'Drivers',                          # <-- [2] Self-explantory.
-    'Feature Packs',                    # <-- [3] New product functionality that is first distributed outside the context of a product release and that is typically included in the next full product release.
-    'Security Updates',                 # <-- [4] Cumulative Updates also counts as "Security Updates".
+    'Critical Updates', # <-- [0] 20XX-XX Update for Windows XX Version 2XXX for [ANY ARCHITECTURE]-based Systems. Includes Microsoft Office updates.
+    'Definition Updates', # <-- [1] AKA Security Intelligence Updates.
+    'Drivers', # <-- [2] Self-explantory.
+    'Feature Packs', # <-- [3] New product functionality that is first distributed outside the context of a product release and that is typically included in the next full product release.
+    'Security Updates', # <-- [4] Cumulative Updates also counts as "Security Updates".
 
-    'Service Packs',                   <# <-- [5] A tested, cumulative set of all hotfixes, security updates, critical updates, and updates. Additionally, service packs
+    'Service Packs', <# <-- [5] A tested, cumulative set of all hotfixes, security updates, critical updates, and updates. Additionally, service packs
                                                   may contain additional fixes for problems that are found internally since the release of the product. Service packs may
                                                   also contain a limited number of customer-requested design changes or features. #>
                                                 
-    'Tools',                            # <-- [6] A utility or feature that helps complete a task or set of tasks.
-    'Update Rollups',                   # <-- [7] Windows Malicious Software Removal Tool.
-    'Updates',                          # <-- [8] Combination of security, definition, and critical updates.
+    'Tools', # <-- [6] A utility or feature that helps complete a task or set of tasks.
+    'Update Rollups', # <-- [7] Windows Malicious Software Removal Tool.
+    'Updates', # <-- [8] Combination of security, definition, and critical updates.
     'Upgrades'
 )
 
 
 # List the updates you want the PC to download and install by the Update Categories above. (Default settings are: 2, 7, 8).
-$Category = $UpdateCatalog[2,7,8]
+$Category = $UpdateCatalog[2, 7, 8]
 
 # Exclude any updates that causes Microsoft Update to fail based by their Knowledge Base (KB) ID.
 $ExcludeKB = @(
@@ -653,6 +653,15 @@ function Start-DeployMe {
         # Test for internet connectivity before running the script.
         Test-InternetConnection
 
+        # Check if Key Deploy is opened and warn the user to close the application.
+        Write-Output "Checking if Key Deploy is opened."
+        Start-sleep -Seconds 2
+        do {
+            Write-Output "Key Deploy is opened. Please close the application to continue."
+            Start-sleep -Seconds 1
+        } until (-not((Get-Process).ProcessName -contains 'DTDesktop'))
+        Clear-Host
+
     } #BEGIN
 
     PROCESS {
@@ -727,19 +736,13 @@ function Start-DeployMe {
         if ($skipOOBE -eq 0) {
             Write-Output "Preparing Sysprep using Out of Box Experience (OOBE)"
             start-sleep -Seconds 5
-            try {
+            if ((Get-Process).ProcessName -contains 'sysprep') {
+                Stop-Process -Name sysprep
                 if ((Test-Path $env:WINDIR\system32\sysprep) -eq $true) {
                     Set-Location $env:WINDIR\system32\sysprep
-                    #Invoke-Command -ScriptBlock { .\sysprep.exe /oobe /quit}
+                    #Invoke-Command -ScriptBlock { .\sysprep.exe /oobe /quit} ## DISABLED
                 } #end if
-            } #end try
-            catch {
-                Write-Warning "An error has occurred that could not be resolved! Please run Sysprep manually."
-                Write-Host $_ -ForegroundColor Red
-                if ((Test-Path $env:WINDIR\system32\sysprep) -eq $true) {
-                    Invoke-Item $env:WINDIR\system32\sysprep
-                } #end if
-            }
+            } #end if
         } #end if
     } #END
 }#End function Start-DeployMe
@@ -747,7 +750,16 @@ function Start-DeployMe {
 Start-DeployMe
 
 # Delete the script once it is done.
-Write-Output "`nScript complete!"
-Invoke-Expression 'cmd /c start powershell -Command {Write-Output "Uninstalling PSWindowsUpdate..." ; Uninstall-Module -Name PSWindowsUpdate}'
+if ($skipOOBE -eq 0) {
+    Write-Output "Script complete! Preparing to shutdown PC..."
+    Start-Sleep -Seconds 5
+    Invoke-Expression 'cmd /c start powershell -Command {Write-Output "Uninstalling PSWindowsUpdate" ; Uninstall-Module -Name PSWindowsUpdate ; Write-Warning "Shutting down PC... ; Start-Sleep -Seconds 5 
+    ; Stop-Computer}'
+} #end if
+else {
+    Write-Output "Script complete!"
+    Invoke-Expression 'cmd /c start powershell -Command {Write-Output "Uninstalling PSWindowsUpdate..." ; Uninstall-Module -Name PSWindowsUpdate}'
+} #end else
+
 Remove-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat" -Force
 Remove-Item -Path $MyInvocation.MyCommand.Source -Force
