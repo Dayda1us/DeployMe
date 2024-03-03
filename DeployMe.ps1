@@ -1,21 +1,10 @@
-#####################################################################################
-#                                                                                   #
-#                                DEPLOY ME (v4.0)                                   #
-#                                                                                   #
-#       Leverages PSWindowsUpdate to install drivers and updates                    #
-#       and deploy Microsoft Windows product key for refurbish PCs                  #
-#       via Key Deploy.                                                              #
-#                                                                                   #
-#                           Developed by Charles Thai                               #
-#####################################################################################
-
 <#
 
     .DESCRIPTION
         An automated script used to deploy Windows PCs with little to no user intervention.
     
     .NOTES
-        This script requires elevated privileges as well as running the latest Windows operating system.
+        This script requires elevated privileges and execution policy set to 'Bypass'
 
 #>
 
@@ -54,7 +43,7 @@ Write-Host "
                            #************                         `n" -ForegroundColor Green                
 Write-Output "#######################################################################"
 Write-Output "#                            DEPLOY ME v4.0                           #"
-Write-Output "#                           WORK IN PROGRESS                          #"
+Write-Output "#                                 BETA                                #"
 Write-Output "#          THIS SCRIPT MAY CONTAIN BUGS. USE AT YOUR OWN RISK!        #"
 Write-Output "#                                                                     #"
 Write-Output "#                      DEVELOPED BY CHARLES THAI                      #"
@@ -71,6 +60,9 @@ Clear-Host
 ########################
 #  PREREQUISITE CHECK  #
 ########################
+
+#Skip prerequisite check (Default is 0).
+$SkipPreReqCheck = 0
 
 # Enter an IP or website to ping.
 $TestWebsite = '3rtechnology.com'
@@ -104,7 +96,10 @@ $UpdateCatalog = @(
 # List the updates you want the PC to download and install by the Update Categories above. (Default settings are: 2, 7, 8).
 $Category = $UpdateCatalog[2, 7, 8]
 
-# Exclude any updates that causes Microsoft Update to fail based by their Knowledge Base (KB) ID.
+<# 
+Exclude any updates from Microsoft Update based by their Knowledge Base (KB) ID.
+Use quotes to add a KB in the exclusion list followed by a comma to add another. (e.g. 'KB12345', 'KB67890',...)
+#>
 $ExcludeKB = @(
 
 )
@@ -119,8 +114,11 @@ $NoPreview = 'Preview'
 #        DEPLOYMENT         #
 #############################
 
-# If you previously created a local administrator account, you may choose the option to remove the account.  (1 = Skip, 0 = Remove account)
-$skipAccountRemoval = 1 
+<#
+If you previously created a local administrator account, you may choose the option to remove the account. (1 = Skip, 0 = Remove account)
+You must specify the local administrator account name if you enable this option.
+#>
+$skipAccountRemoval = 0 
 $Username = 'Refurb'
 
 # Skip Sysprep OOBE. (1 = Skip Sysprep, 0 = Sysprep PC)
@@ -146,24 +144,24 @@ function Set-Message {
 
     switch ($Number) {
         { $SelectedNumber -eq $numbers[0] } {
-            Write-Output "You are now ready to install updates"
-            Start-Sleep -Seconds 5
+            Write-Output "Your PC is now ready to install updates"
+            Start-Sleep -Seconds 3
             Clear-Host
         }
         { $SelectedNumber -eq $numbers[1] } {
             Write-Host "`nYour PC is up to date" -ForegroundColor Green
             Write-Output "Preparing for deployment..."
-            Start-Sleep -seconds 5
+            Start-Sleep -Seconds 3
             Clear-Host
         }
         { $SelectedNumber -eq $numbers[2] } {
             Write-Output "`nYour PC has updates to install."
-            Start-sleep -Seconds 2
+            Start-sleep -Seconds 3
             Clear-Host
         }
         { $SelectedNumber -eq $numbers[3] } {
             Write-Output 'Your PC is up to date! Preparing to Sysprep machine...'
-            Start-Sleep -Seconds 5
+            Start-Sleep -Seconds 3
             Clear-Host
         }
         default {
@@ -343,11 +341,13 @@ function Get-Nuget {
             catch [System.Management.Automation.ActionPreferenceStopException] {
                 Write-Warning 'An error has occurred that could not be resolved.'
                 Write-Host $_.Exception.Message
-                
+                Start-Sleep -Seconds 2
                 # Restart the script if this cmdlet fails.
-                Write-Warning 'Restarting script'
-                start-sleep 5
-                Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
+                if ((Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat") -eq $true) {
+                    Write-Warning 'Restarting script'
+                    Start-Sleep -seconds 3
+                    Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
+                } #end else
                 exit
             } #End Catch
         } #End if
@@ -415,7 +415,6 @@ function Set-PSGallery {
             }
         }#END Switch
     } #END PROCESS
-    END {} #END
 } #function Set-PSGallery
 
 function Get-PSWindowsUpdate {
@@ -434,9 +433,11 @@ function Get-PSWindowsUpdate {
             } #End try
             catch {
                 Write-Host $_ -ForegroundColor Red
-                Write-Warning "An error has occurred that could not be resolved. Restarting script..."
+                Write-Warning "An error has occurred that could not be resolved."
                 Start-Sleep -Seconds 3
                 if ((Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat") -eq $true) {
+                    Write-Warning "Restarting script..."
+                    Start-Sleep -Seconds 3
                     Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
                 } #End if
                 exit
@@ -457,9 +458,11 @@ function Get-PSWindowsUpdate {
                     } #End try
                     catch {
                         Write-Host $_ -ForegroundColor Red
-                        Write-Warning "An error has occurred that could not be resolved. Restarting script..."
+                        Write-Warning "An error has occurred that could not be resolved."
                         Start-Sleep -Seconds 3
                         if ((Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat") -eq $true) {
+                            Write-Warning "Restarting script..."
+                            Start-Sleep -Seconds 3
                             Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
                         } #End if
                         exit
@@ -471,6 +474,8 @@ function Get-PSWindowsUpdate {
                 Write-Warning "An error has occurred that could not be resolved. Restarting script..."
                 Start-Sleep -Seconds 3
                 if ((Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat") -eq $true) {
+                    Write-Warning "Restarting script..."
+                    Start-Sleep -Seconds 3
                     Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
                 } #End if
                 exit
@@ -485,9 +490,11 @@ function Get-PSWindowsUpdate {
             Clear-Host
         } #end if
         else {
-            Write-Warning "PSWindowsUpdate was not imported properly! Restarting script..."
+            Write-Warning "PSWindowsUpdate was not imported properly!"
             Start-Sleep -Seconds 3
             if ((Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat") -eq $true) {
+                Write-Warning "Restarting script..."
+                Start-Sleep -Seconds 3
                 Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
             } #End if
             exit
@@ -508,9 +515,11 @@ function Request-MicrosoftUpdate {
             Write-Output "CHECKING FOR UPDATES"
         } #end if
         else {
-            Write-Warning 'PSWindowsUpdate is not imported! Restarting script...'
+            Write-Warning 'PSWindowsUpdate is not imported! This module is required for the script to work properly.'
             Start-Sleep -Seconds 3
             if ((Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat") -eq $true) {
+                Write-Warning "Restarting script..."
+                Start-Sleep -Seconds 3
                 Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
             } #End if
             exit
@@ -518,9 +527,9 @@ function Request-MicrosoftUpdate {
     } #END BEGIN
     PROCESS {
         try {
-            # Download and install drivers. Exclude preview updates.
+            # Download and install updates. Stop when there are no updates left to install.
             while ((Get-WUList -Category $Category -NotTitle $NoPreview).Size -gt 0) {
-                Get-WUList -Category $Category -NotTitle $NoPreview -AcceptAll -Install -AutoReboot | Format-List Title, KB, Size, Status, RebootRequired
+                Get-WUList -Category $Category -NotTitle $NoPreview -AcceptAll -Install -AutoReboot | Format-Table Title, Status, KB, Size, RebootRequired
             } #End while
         } #End try
         catch {
@@ -568,12 +577,12 @@ function Remove-ReferenceAccount {
             } #End Try
             catch {
                 Write-Host $_ -ForegroundColor Red
-                Write-Warning "An error has occurred that could not be resolved. Please remove the account manually."
+                Write-Warning "Could not remove the account. Please remove the account manually."
                 Start-Process "ms-settings:otherusers"
+                Start-Sleep -Seconds 2
             }#End Catch
         } #End Else
     }#END PROCESS
-    END {}#END
 } #End function Remove-RefurbAccount
 
 # Start the script by setting the correct date and time. Then install the PSWindowsUpdate to begin retrieving updates via PowerShell.
@@ -583,7 +592,7 @@ function Start-Script {
 
     # Verify the date and time. Change the timezone according to your location.
     Sync-Time -Timezone $Time
-
+    Write-Output "`n"
     # Install PSWindowsUpdate
     Get-Nuget
     Set-PSGallery -InstallationPolicy 'Trusted'
@@ -602,46 +611,12 @@ function Deploy-Computer {
         Write-Output "FINAL STAGE: DEPLOYMENT`n"
         Write-Output "The settings were already set back to its original setting."
         Start-Sleep -Seconds 3
-        if ($skipOOBE -eq 0) {
-            Write-Output "Preparing Sysprep using Out of Box Experience (OOBE)"
-            start-sleep -Seconds 5
-            try {
-                if ((Test-Path $env:WINDIR\system32\sysprep) -eq $true) {
-                    Set-Location $env:WINDIR\system32\sysprep
-                    #Invoke-Command -ScriptBlock { .\sysprep.exe /oobe /quit}
-                } #end if
-            } #end try
-            catch {
-                Write-Warning "An error has occurred that could not be resolved! Please run Sysprep manually."
-                Write-Host $_ -ForegroundColor Red
-                if ((Test-Path $env:WINDIR\system32\sysprep) -eq $true) {
-                    Invoke-Item $env:WINDIR\system32\sysprep
-                } #end if
-            }
-        } #end if
     } #end if
     else {
         Write-Output "FINAL STAGE: DEPLOYMENT`n"
         Set-PSGallery -InstallationPolicy 'Untrusted'
         if ($skipAccountRemoval -eq 0) {
-            Remove-RefurbAccount
-        } #end if
-        if ($skipOOBE -eq 0) {
-            Write-Output "Preparing Sysprep using Out of Box Experience (OOBE)"
-            start-sleep -Seconds 5
-            try {
-                if ((Test-Path $env:WINDIR\system32\sysprep) -eq $true) {
-                    Set-Location $env:WINDIR\system32\sysprep
-                    #Invoke-Command -ScriptBlock { .\sysprep.exe /oobe /quit}
-                } #end if
-            } #end try
-            catch {
-                Write-Warning "An error has occurred that could not be resolved! Please run Sysprep manually."
-                Write-Host $_ -ForegroundColor Red
-                if ((Test-Path $env:WINDIR\system32\sysprep) -eq $true) {
-                    Invoke-Item $env:WINDIR\system32\sysprep
-                } #end if
-            }
+            Remove-ReferenceAccount
         } #end if
     } #end else
 } #End function Deploy-Computer
@@ -650,22 +625,23 @@ function Start-DeployMe {
     Param()
     
     BEGIN {
-        # Test for internet connectivity before running the script.
-        Test-InternetConnection
+        if ($SkipPreReqCheck -eq 0) {
+            Write-Verbose "[BEGIN] Performing the prerequisite check on $ENV:COMPUTERNAME"
+            # Test for internet connectivity before running the script.
+            Test-InternetConnection
 
-        # Check if Key Deploy is opened and warn the user to close the application.
-        Write-Output "Checking if Key Deploy is opened."
-        Start-sleep -Seconds 2
-        do {
-            Write-Output "Key Deploy is opened. Please close the application to continue."
-            Start-sleep -Seconds 1
-        } until (-not((Get-Process).ProcessName -contains 'DTDesktop'))
-        Clear-Host
-
+            # Check if Key Deploy is opened and warn the user to close the application.
+            Write-Output "Checking if Key Deploy is opened."
+            while ((Get-Process).ProcessName -contains 'DTDesktop') {
+                Write-Output "Key Deploy is opened. Please close the application to continue."
+                Start-sleep -Seconds 5
+            } #end while
+            Clear-Host
+        } #end if
     } #BEGIN
 
     PROCESS {
-        Write-Verbose -Message "Checking if this script was previously ran on $ENV:COMPUTERNAME"
+        Write-Verbose -Message "[PROCESS] Checking if this script was previously ran on $ENV:COMPUTERNAME"
         Write-Output "Initializing script...`n"
         $PSWU = (Get-InstalledModule).name -contains 'PSWindowsUpdate'
         Start-Sleep -Seconds 2
@@ -684,15 +660,17 @@ function Start-DeployMe {
             } #End try
             catch {
                 Write-Host $_ -ForegroundColor Red
-                Write-Warning 'An error occurred that could not be resolved. Restarting script...'
-                Start-sleep 2
+                Write-Warning 'An error occurred that could not be resolved.'
+                Start-sleep 3
                 if (Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat" -eq $true) {
+                    Write-Warning 'Restarting script...'
+                    Start-Sleep -Seconds 3
                     Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
                 } #End if
                 exit
             } #End catch
     
-            Write-Verbose -Message "$env:COMPUTERNAME is checking for updates."
+            Write-Verbose -Message "[PROCESS] $env:COMPUTERNAME is checking for updates."
             Write-Output "`nChecking for updates..."
             $InstallPolicy = (Get-PSRepository -Name PSGallery).InstallationPolicy
             $GWU = (Get-WUList -Category $Category -NotTitle $NoPreview -NotKBArticleID $ExcludeKB).Size
@@ -716,7 +694,7 @@ function Start-DeployMe {
         } #End if
 
         # If PSWindowsUpdate is not installed, but NuGet and PSGallery is already been modified by the script, Install PSWindowsUpdate, import and check for updates.
-        elseif ((Get-PackageProvider |  Where-Object { $_.name -eq "Nuget" }).name -contains "NuGet" -and (Get-PSRepository -Name PSGallery).InstallationPolicy -eq 'Trusted') {
+        elseif ((Get-PackageProvider | Where-Object { $_.name -eq "Nuget" }).name -contains "NuGet" -and (Get-PSRepository -Name PSGallery).InstallationPolicy -eq 'Trusted') {
             Write-Output 'The script has detected that NuGet and PSGallery settings were already modified, Installing PSWindowsUpdate'
             Get-PSWindowsUpdate
             Get-Update
@@ -725,9 +703,9 @@ function Start-DeployMe {
 
         # Run the script for the first time.
         else {
-            Write-Verbose -Message "Initializing AutoDeploy for the first time on $env:COMPUTERNAME"
+            Write-Verbose -Message "[PROCESS] Initializing AutoDeploy for the first time on $env:COMPUTERNAME"
             Start-Script
-            Get-Update
+            #Get-Update
             Deploy-Computer
         } #End else
     } #PROCESS
@@ -740,7 +718,7 @@ function Start-DeployMe {
                 Stop-Process -Name sysprep
                 if ((Test-Path $env:WINDIR\system32\sysprep) -eq $true) {
                     Set-Location $env:WINDIR\system32\sysprep
-                    #Invoke-Command -ScriptBlock { .\sysprep.exe /oobe /quit} ## DISABLED
+                    #Invoke-Command -ScriptBlock { .\sysprep.exe /oobe /quit} ## DISABLE TO AVOID TRIGGERING SYSPREP
                 } #end if
             } #end if
         } #end if
@@ -749,17 +727,19 @@ function Start-DeployMe {
 
 Start-DeployMe
 
-# Delete the script once it is done.
+# Uninstall PSWindowsUpdate and delete the script and batch file. Shutdown the PC if Sysprep was initalized.
 if ($skipOOBE -eq 0) {
-    Write-Output "Script complete! Preparing to shutdown PC..."
-    Start-Sleep -Seconds 5
-    Invoke-Expression 'cmd /c start powershell -Command {Write-Output "Uninstalling PSWindowsUpdate" ; Uninstall-Module -Name PSWindowsUpdate ; Write-Warning "Shutting down PC... ; Start-Sleep -Seconds 5 
-    ; Stop-Computer}'
+    Write-Output "Script complete! Preparing to shutdown PC in 30 seconds."
+    Invoke-Expression 'cmd /c start powershell -Command {Write-Output "Uninstalling PSWindowsUpdate" ; Uninstall-Module -Name PSWindowsUpdate}'
+    Start-Sleep -Seconds 30
+    Remove-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat" -Force
+    Remove-Item -Path $MyInvocation.MyCommand.Source -Force
+    Stop-Computer
 } #end if
 else {
-    Write-Output "Script complete!"
+    Write-Output "Script complete! Preparing to uninstall PSWindowsUpdate. Please sysprep the PC when you are finished."
+    Start-Sleep -Seconds 5
     Invoke-Expression 'cmd /c start powershell -Command {Write-Output "Uninstalling PSWindowsUpdate..." ; Uninstall-Module -Name PSWindowsUpdate}'
+    Remove-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat" -Force
+    Remove-Item -Path $MyInvocation.MyCommand.Source -Force
 } #end else
-
-Remove-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat" -Force
-Remove-Item -Path $MyInvocation.MyCommand.Source -Force
