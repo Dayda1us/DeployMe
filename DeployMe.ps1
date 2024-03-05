@@ -705,7 +705,7 @@ function Start-DeployMe {
         else {
             Write-Verbose -Message "[PROCESS] Initializing AutoDeploy for the first time on $env:COMPUTERNAME"
             Start-Script
-            #Get-Update
+            Get-Update
             Deploy-Computer
         } #End else
     } #PROCESS
@@ -718,7 +718,7 @@ function Start-DeployMe {
                 Stop-Process -Name sysprep
                 if ((Test-Path $env:WINDIR\system32\sysprep) -eq $true) {
                     Set-Location $env:WINDIR\system32\sysprep
-                    #Invoke-Command -ScriptBlock { .\sysprep.exe /oobe /quit} ## DISABLE TO AVOID TRIGGERING SYSPREP
+                    Invoke-Command -ScriptBlock { .\sysprep.exe /oobe /quit}
                 } #end if
             } #end if
         } #end if
@@ -727,8 +727,8 @@ function Start-DeployMe {
 
 Start-DeployMe
 
-# Uninstall PSWindowsUpdate and delete the script and batch file. Shutdown the PC if Sysprep was initalized.
-if ($skipOOBE -eq 0) {
+# Check the Sysprep folder and verify if the success tag exists. If the tag exists, Uninstall PSWindowsUpdate, delete the script, and shut down the PC.
+if ((Test-Path -Path $env:WINDIR\System32\Sysprep\Sysprep_succeeded.tag) -eq $true) {
     Write-Output "Script complete! Preparing to shutdown PC in 30 seconds."
     Invoke-Expression 'cmd /c start powershell -Command {Write-Output "Uninstalling PSWindowsUpdate" ; Uninstall-Module -Name PSWindowsUpdate}'
     Start-Sleep -Seconds 30
@@ -739,6 +739,12 @@ if ($skipOOBE -eq 0) {
 else {
     Write-Output "Script complete! Preparing to uninstall PSWindowsUpdate. Please sysprep the PC when you are finished."
     Start-Sleep -Seconds 5
+    if ((Get-Process).ProcessName -contains 'sysprep') {
+        Write-Output "Sysprep is already opened!"
+    } #end if
+    else {
+        if ((Test-Path $env:WINDIR\system32\sysprep) -eq $true) { Invoke-Item $env:WINDIR\system32\sysprep\sysprep.exe }
+    }
     Invoke-Expression 'cmd /c start powershell -Command {Write-Output "Uninstalling PSWindowsUpdate..." ; Uninstall-Module -Name PSWindowsUpdate}'
     Remove-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat" -Force
     Remove-Item -Path $MyInvocation.MyCommand.Source -Force
