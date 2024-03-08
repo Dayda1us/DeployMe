@@ -122,7 +122,7 @@ $skipAccountRemoval = 0
 $Username = 'Refurb'
 
 # Skip Sysprep OOBE. (1 = Skip Sysprep, 0 = Sysprep PC)
-$skipOOBE = 1
+$skipOOBE = 0
 
 ###############################################
 #          Editable Variables End             #
@@ -711,6 +711,7 @@ function Start-DeployMe {
     } #PROCESS
     
     END {
+        # Sysprep the PC. Give it 20 seconds for the success tag to be created in the sysprep folder.
         if ($skipOOBE -eq 0) {
             Write-Output "Preparing Sysprep using Out of Box Experience (OOBE)"
             start-sleep -Seconds 5
@@ -719,6 +720,7 @@ function Start-DeployMe {
                 if ((Test-Path $env:WINDIR\system32\sysprep) -eq $true) {
                     Set-Location $env:WINDIR\system32\sysprep
                     Invoke-Command -ScriptBlock { .\sysprep.exe /oobe /quit}
+                    Start-Sleep -Seconds 20
                 } #end if
             } #end if
         } #end if
@@ -730,10 +732,10 @@ Start-DeployMe
 # Check the Sysprep folder and verify if the success tag exists. If the tag exists, Uninstall PSWindowsUpdate, delete the script, and shut down the PC.
 if ((Test-Path -Path $env:WINDIR\System32\Sysprep\Sysprep_succeeded.tag) -eq $true) {
     Write-Output "Script complete! Preparing to shutdown PC in 30 seconds."
-    Invoke-Expression 'cmd /c start powershell -Command {Write-Output "Uninstalling PSWindowsUpdate" ; Uninstall-Module -Name PSWindowsUpdate}'
-    Start-Sleep -Seconds 30
+    Invoke-Expression 'cmd /c start powershell -Command {Write-Output "Uninstalling PSWindowsUpdate" ; Uninstall-Module -Name PSWindowsUpdate -Force}'
     Remove-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat" -Force
     Remove-Item -Path $MyInvocation.MyCommand.Source -Force
+    Start-Sleep -Seconds 30
     Stop-Computer
 } #end if
 else {
@@ -742,10 +744,10 @@ else {
     if ((Get-Process).ProcessName -contains 'sysprep') {
         Write-Output "Sysprep is already opened!"
     } #end if
-    else {
-        if ((Test-Path $env:WINDIR\system32\sysprep) -eq $true) { Invoke-Item $env:WINDIR\system32\sysprep\sysprep.exe }
-    }
-    Invoke-Expression 'cmd /c start powershell -Command {Write-Output "Uninstalling PSWindowsUpdate..." ; Uninstall-Module -Name PSWindowsUpdate}'
+    elseif ((Test-Path -Path $env:WINDIR\System32\Sysprep\sysprep.exe) -eq $true) {
+        Invoke-Item -Path $env:WINDIR\System32\Sysprep\sysprep.exe
+    } #end elseif
+    Invoke-Expression 'cmd /c start powershell -Command {Write-Output "Uninstalling PSWindowsUpdate..." ; Uninstall-Module -Name PSWindowsUpdate -Force}'
     Remove-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat" -Force
     Remove-Item -Path $MyInvocation.MyCommand.Source -Force
 } #end else
