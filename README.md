@@ -10,8 +10,7 @@ This script was developed for the purpose of automating deployments for refurbis
 
 <!-- Features -->
 ## Key Features
-- Utilizes the PSWindowsUpdate module to retrieve Microsoft Updates using PowerShell.
-- Contains editable variables to modify the behavior of the script.
-- Has the ability to automatically sync the date/time of the computer.
-- Utilizes Sysprep to "seal" the PC for an Out-of-Box-Experience (OOBE).
-- Checks for Internet connectivity before launching the script.
+- Implemented PSWindowsUpdate module in PowerShell to efficiently retrieve Microsoft Updates
+- Developed script with editable variables to customize behavior
+- Automated synchronization of computer date/time
+- Implemented Internet connectivity check prior to script execution
