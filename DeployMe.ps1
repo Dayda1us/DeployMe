@@ -4,12 +4,13 @@
         An automated script used to deploy Windows PCs with little to no user intervention.
     
     .NOTES
-        This script requires elevated privileges and execution policy set to 'Bypass'
+        This script requires Windows PowerShell v5.1 as well as elevated privileges, and execution policy set to "Bypass".
 
 #>
 
 # This script must be started with elevated user rights.
 #Requires -RunAsAdministrator
+#Requires -Version 5.1
 
 Write-Host " 
                    ***      ***************                      
@@ -43,8 +44,6 @@ Write-Host "
                            #************                         `n" -ForegroundColor Green                
 Write-Output "#######################################################################"
 Write-Output "#                            DEPLOY ME v4.0                           #"
-Write-Output "#                                 BETA                                #"
-Write-Output "#          THIS SCRIPT MAY CONTAIN BUGS. USE AT YOUR OWN RISK!        #"
 Write-Output "#                                                                     #"
 Write-Output "#                      DEVELOPED BY CHARLES THAI                      #"
 Write-Output "#######################################################################`n"
@@ -63,6 +62,10 @@ Clear-Host
 
 #Skip prerequisite check (Default is 0).
 $SkipPreReqCheck = 0
+
+
+## The two variables below are part of the prerequisite check. ##
+## If you intend to skip the prerequisite check, then these variables will have no effect to the script. ##
 
 # Enter an IP or website to ping.
 $TestWebsite = '3rtechnology.com'
@@ -282,11 +285,8 @@ function Test-InternetConnection {
         # If there is no Internet connection, display an error and retry 5 five times.
         Write-Verbose -Message "[PROCESS] Checking if $env:COMPUTERNAME can ping to $TestWebsite"
         while (-not((Test-Connection $TestWebsite -Quiet -Count 1) -eq $true)) {
-            5..1 | ForEach-Object {
                 Write-Warning "No Internet connection found. Retrying..."
                 Start-Sleep -Seconds 5
-            }
-            break
         }
     }#PROCESS
     END {
@@ -511,7 +511,7 @@ function Request-MicrosoftUpdate {
     Param()
 
     BEGIN {
-        if ((Get-Module).Name -contains 'PSWindowsUpdate') {
+        if ((Get-Module -name PSWindowsUpdate)) {
             Write-Output "CHECKING FOR UPDATES"
         } #end if
         else {
@@ -534,7 +534,7 @@ function Request-MicrosoftUpdate {
         } #End try
         catch {
             Write-Host $_ -ForegroundColor Red
-            Write-Warning "A fatal error has occurred. This may be caused by PSWindowsUpdate not being properly imported."
+            Write-Warning "A fatal error has occurred that coud not be resolved."
             Write-Output "`nRestarting script..."
             Start-Sleep -Seconds 5
             if ((Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat") -eq $true) {
@@ -729,6 +729,11 @@ function Start-DeployMe {
 
 Start-DeployMe
 
+#Skip OOBE if account was not removed successfully.
+if ((Get-LocalUser -name $Username -EA SilentlyContinue).name -eq $Username) {
+    $skipOOBE = 1
+} #end if
+
 # Check the Sysprep folder and verify if the success tag exists. If the tag exists, Uninstall PSWindowsUpdate, delete the script, and shut down the PC.
 if ((Test-Path -Path $env:WINDIR\System32\Sysprep\Sysprep_succeeded.tag) -eq $true) {
     Write-Output "Script complete! Preparing to shutdown PC in 30 seconds."
@@ -740,9 +745,9 @@ if ((Test-Path -Path $env:WINDIR\System32\Sysprep\Sysprep_succeeded.tag) -eq $tr
 } #end if
 else {
     Write-Output "Script complete! Preparing to uninstall PSWindowsUpdate. Please sysprep the PC when you are finished."
-    Start-Sleep -Seconds 5
     if ((Get-Process).ProcessName -contains 'sysprep') {
         Write-Output "Sysprep is already opened!"
+        Start-Sleep -Seconds 5
     } #end if
     elseif ((Test-Path -Path $env:WINDIR\System32\Sysprep\sysprep.exe) -eq $true) {
         Invoke-Item -Path $env:WINDIR\System32\Sysprep\sysprep.exe
