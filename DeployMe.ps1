@@ -285,8 +285,8 @@ function Test-InternetConnection {
         # If there is no Internet connection, display an error and retry 5 five times.
         Write-Verbose -Message "[PROCESS] Checking if $env:COMPUTERNAME can ping to $TestWebsite"
         while (-not((Test-Connection $TestWebsite -Quiet -Count 1) -eq $true)) {
-                Write-Warning "No Internet connection found. Retrying..."
-                Start-Sleep -Seconds 5
+            Write-Warning "No Internet connection found. Retrying..."
+            Start-Sleep -Seconds 10
         }
     }#PROCESS
     END {
@@ -297,7 +297,6 @@ function Test-InternetConnection {
             Clear-Host
         } # End if
         else {
-            # If failed 5 times, display a warning message and open up the directory to the batch file, and abort script.
             Write-Verbose -Message "[END] $env:COMPUTERNAME could not establish an Internet connection."
             Write-Warning "Could not establish an Internet connection. Please check your network configuration and try again."
             if ((Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/") -eq $true) {
@@ -471,7 +470,7 @@ function Get-PSWindowsUpdate {
             } #end try
             catch {
                 Write-Host $_ -ForegroundColor Red
-                Write-Warning "An error has occurred that could not be resolved. Restarting script..."
+                Write-Warning "An error has occurred that could not be resolved."
                 Start-Sleep -Seconds 3
                 if ((Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat") -eq $true) {
                     Write-Warning "Restarting script..."
@@ -484,13 +483,13 @@ function Get-PSWindowsUpdate {
     } #END PROCESS
 
     END {
-        if ((Get-Module).Name -contains $PSWU) {
+        if ((Get-Module -Name $PSWU)) {
             Write-Output 'Module imported!'
             Start-Sleep -Seconds 5
             Clear-Host
         } #end if
         else {
-            Write-Warning "PSWindowsUpdate was not imported properly!"
+            Write-Warning "PSWindowsUpdate was not imported!"
             Start-Sleep -Seconds 3
             if ((Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat") -eq $true) {
                 Write-Warning "Restarting script..."
@@ -529,7 +528,7 @@ function Request-MicrosoftUpdate {
         try {
             # Download and install updates. Stop when there are no updates left to install.
             while ((Get-WUList -Category $Category -NotTitle $NoPreview).Size -gt 0) {
-                Get-WUList -Category $Category -NotTitle $NoPreview -AcceptAll -Install -AutoReboot | Format-Table Title, Status, KB, Size, RebootRequired
+                Get-WUList -Category $Category -NotTitle $NoPreview -AcceptAll -Install -AutoReboot | Format-Table Status, KB, Size, @{l="Reboot?";e={ $_.RebootRequired }}, Title -Wrap
             } #End while
         } #End try
         catch {
@@ -591,7 +590,7 @@ function Start-Script {
     Write-Output "STAGE 1: RETRIEVING THE REQUIRED MODULE`n"
 
     # Verify the date and time. Change the timezone according to your location.
-    Sync-Time -Timezone $Time
+    #Sync-Time -Timezone $Time
     Write-Output "`n"
     # Install PSWindowsUpdate
     Get-Nuget
@@ -625,13 +624,29 @@ function Start-DeployMe {
     Param()
     
     BEGIN {
+
+        # Check if the operating system is running on Windows 11. Terminate the script and delete its files if the OS is older than Windows 11.
+        Write-Output "Checking the operating system...."
+        Start-Sleep -Seconds 5
+        if (([System.Environment]::OSVersion.Version).Build -lt 21999) {
+            Write-Warning "This operating system is unsupported. This script will only work on Windows 11 or later."
+            if ((Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat") -eq $true) {
+                Remove-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat" -Force
+                Remove-Item -Path "$env:HOMEDRIVE/DeployMe.ps1" -Force
+            } #end if
+            Start-Sleep -Seconds 5
+            exit
+        } #end if 
         if ($SkipPreReqCheck -eq 0) {
             Write-Verbose "[BEGIN] Performing the prerequisite check on $ENV:COMPUTERNAME"
             # Test for internet connectivity before running the script.
             Test-InternetConnection
 
+            # Verify the date and time. Change the timezone according to your location.
+            Sync-Time -Timezone $Time
+
             # Check if Key Deploy is opened and warn the user to close the application.
-            Write-Output "Checking if Key Deploy is opened."
+            Write-Output "Checking if Key Deploy is opened..."
             while ((Get-Process).ProcessName -contains 'DTDesktop') {
                 Write-Output "Key Deploy is opened. Please close the application to continue."
                 Start-sleep -Seconds 5
@@ -711,6 +726,12 @@ function Start-DeployMe {
     } #PROCESS
     
     END {
+        #Skip OOBE if account was not removed successfully.
+        if ((Get-LocalUser) -match $Username) {
+            Write-Warning "This reference account wasn't removed. Please remove the account manually then sysprep the machine."
+            $skipOOBE = 1
+        } #end if
+
         # Sysprep the PC. Give it 20 seconds for the success tag to be created in the sysprep folder.
         if ($skipOOBE -eq 0) {
             Write-Output "Preparing Sysprep using Out of Box Experience (OOBE)"
@@ -719,8 +740,8 @@ function Start-DeployMe {
                 Stop-Process -Name sysprep
                 if ((Test-Path $env:WINDIR\system32\sysprep) -eq $true) {
                     Set-Location $env:WINDIR\system32\sysprep
-                    Invoke-Command -ScriptBlock { .\sysprep.exe /oobe /quit}
-                    Start-Sleep -Seconds 20
+                    Invoke-Command -ScriptBlock { .\sysprep.exe /oobe /quit }
+                    Start-Sleep -Seconds 15
                 } #end if
             } #end if
         } #end if
@@ -728,11 +749,6 @@ function Start-DeployMe {
 }#End function Start-DeployMe
 
 Start-DeployMe
-
-#Skip OOBE if account was not removed successfully.
-if ((Get-LocalUser -name $Username -EA SilentlyContinue).name -eq $Username) {
-    $skipOOBE = 1
-} #end if
 
 # Check the Sysprep folder and verify if the success tag exists. If the tag exists, Uninstall PSWindowsUpdate, delete the script, and shut down the PC.
 if ((Test-Path -Path $env:WINDIR\System32\Sysprep\Sysprep_succeeded.tag) -eq $true) {
