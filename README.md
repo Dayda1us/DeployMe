@@ -6,7 +6,7 @@ A simple automated script that deploys Windows PCs written in PowerShell.
 
 <!-- About this Project -->
 ## About this Project
-This script was developed for the purpose of automating deployments for refurbished PCs. Prior to the development of this script, all deployments were done manually by having an ITAD technician interact with each computer. This script helps alleviate the workload of interacting with the PCs which allows technicians to perform other duties while the deployments are being automated.
+This script was developed for the purpose of automating deployments for refurbished Windows PCs. Prior to the development of this script, all deployments were done manually by having an ITAD technician interact with each computer. This script helps alleviate the workload which allows technicians to perform other duties while deployments are being automated.
 
 <!-- Features -->
 ## Key Features
