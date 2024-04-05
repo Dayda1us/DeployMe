@@ -4,13 +4,37 @@
         An automated script used to deploy Windows PCs with little to no user intervention.
     
     .NOTES
-        This script requires Windows PowerShell v5.1 as well as elevated privileges, and execution policy set to "Bypass".
+        This script requires the following: `
+        - Windows PowerShell v5.1 or later`
+        - Windows 11 or later `
+        - Elevated prilveges `
+        - Execution policy set to "Bypass"
 
 #>
-
-# This script must be started with elevated user rights.
 #Requires -RunAsAdministrator
 #Requires -Version 5.1
+
+
+# Check if the operating system is running on Windows 11. Terminate the script and delete its files if the OS is older than Windows 11.
+Write-Output "Checking if this PC is running Windows 11 or later..."
+Start-Sleep -Seconds 5
+if (([System.Environment]::OSVersion.Version).Build -lt 21999) {
+    Write-Warning "This operating system is unsupported. This script will only run on Windows 11 or later."
+    Start-Sleep -Seconds 5
+    if ((Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat") -eq $true) {
+        Write-Warning "Removing script..."
+        Start-Sleep -Seconds 2
+        Remove-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat" -Force
+        Remove-Item -Path "$env:HOMEDRIVE/DeployMe.ps1" -Force
+    } #end if
+    exit
+} #end if 
+else {
+    Write-Host "This PC is running Windows 11." -ForegroundColor Green
+    Write-OUtput "Starting script..."
+    Start-Sleep -seconds 3
+    Clear-Host
+}
 
 Write-Host " 
                    ***      ***************                      
@@ -60,17 +84,19 @@ Clear-Host
 #  PREREQUISITE CHECK  #
 ########################
 
-#Skip prerequisite check (Default is 0).
+#Skip prerequisite check (Default is 0 for enabled).
 $SkipPreReqCheck = 0
 
 
 ## The two variables below are part of the prerequisite check. ##
 ## If you intend to skip the prerequisite check, then these variables will have no effect to the script. ##
 
-# Enter an IP or website to ping.
+# Enable the Internet connectivity check. Enter an IP or website to ping. (Default is 0 for enabled).
+$EnablePingTest = 0
 $TestWebsite = '3rtechnology.com'
 
-# Set the timezone of your location and automatically sync the date/time.
+# Enable this script to set the date/time. Set the timezone of the location and automatically sync the date/time.
+$EnableTimeSync = 0
 $Time = 'Pacific Standard Time'
 
 #############################
@@ -425,7 +451,7 @@ function Get-PSWindowsUpdate {
         Write-Output "Checking if $PSWU is installed..."
 
         # If the module is already installed, import it.
-        if ((Get-InstalledModule).Name -contains $PSWU) {
+        if (Get-InstalledModule -Name $PSWU) {
             Write-Output "$PSWU is already installed! Importing the module..."
             try {
                 Import-Module $PSWU
@@ -446,7 +472,7 @@ function Get-PSWindowsUpdate {
 
     PROCESS {
         # Install PSWindowsUpdate if it is not installed.
-        if ((Get-InstalledModule).Name -notcontains $PSWU) {
+        if (-not(Get-InstalledModule -Name $PSWU)) {
             Write-Output "Installing $PSWU..."
             try {
                 Install-Module -Name $PSWU -Force
@@ -528,7 +554,7 @@ function Request-MicrosoftUpdate {
         try {
             # Download and install updates. Stop when there are no updates left to install.
             while ((Get-WUList -Category $Category -NotTitle $NoPreview).Size -gt 0) {
-                Get-WUList -Category $Category -NotTitle $NoPreview -AcceptAll -Install -AutoReboot | Format-Table Status, KB, Size, @{l="Reboot?";e={ $_.RebootRequired }}, Title -Wrap
+                Get-WUList -Category $Category -NotTitle $NoPreview -AcceptAll -Install -AutoReboot | Format-Table Status, KB, Size, @{l = "Reboot?"; e = { $_.RebootRequired } }, Title -Wrap
             } #End while
         } #End try
         catch {
@@ -587,7 +613,7 @@ function Remove-ReferenceAccount {
 # Start the script by setting the correct date and time. Then install the PSWindowsUpdate to begin retrieving updates via PowerShell.
 function Start-Script {
     Clear-Host
-    Write-Output "STAGE 1: RETRIEVING THE REQUIRED MODULE`n"
+    Write-Output "STAGE 1: INSTALL PSWINDOWSUPDATE`n"
 
     # Verify the date and time. Change the timezone according to your location.
     #Sync-Time -Timezone $Time
@@ -600,7 +626,7 @@ function Start-Script {
 
 # Accept, Download, Install, and Reboot updates using PSWindowsUpdate.
 function Get-Update {
-    Write-Output "STAGE 2: UPDATES`n"
+    Write-Output "STAGE 2: UPDATING WINDOWS`n"
     Request-MicrosoftUpdate
 } #End function Get-Update
 
@@ -624,19 +650,6 @@ function Start-DeployMe {
     Param()
     
     BEGIN {
-
-        # Check if the operating system is running on Windows 11. Terminate the script and delete its files if the OS is older than Windows 11.
-        Write-Output "Checking the operating system...."
-        Start-Sleep -Seconds 5
-        if (([System.Environment]::OSVersion.Version).Build -lt 21999) {
-            Write-Warning "This operating system is unsupported. This script will only work on Windows 11 or later."
-            if ((Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat") -eq $true) {
-                Remove-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat" -Force
-                Remove-Item -Path "$env:HOMEDRIVE/DeployMe.ps1" -Force
-            } #end if
-            Start-Sleep -Seconds 5
-            exit
-        } #end if 
         if ($SkipPreReqCheck -eq 0) {
             Write-Verbose "[BEGIN] Performing the prerequisite check on $ENV:COMPUTERNAME"
             # Test for internet connectivity before running the script.
