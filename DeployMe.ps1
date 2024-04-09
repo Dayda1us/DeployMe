@@ -85,18 +85,18 @@ Clear-Host
 ########################
 
 #Skip prerequisite check (Default is 0 for enabled).
-$SkipPreReqCheck = 0
+$skipPreReqCheck = 0
 
 
 ## The two variables below are part of the prerequisite check. ##
 ## If you intend to skip the prerequisite check, then these variables will have no effect to the script. ##
 
 # Enable the Internet connectivity check. Enter an IP or website to ping. (Default is 0 for enabled).
-$EnablePingTest = 0
+$enablePingTest = 0
 $TestWebsite = '3rtechnology.com'
 
 # Enable this script to set the date/time. Set the timezone of the location and automatically sync the date/time.
-$EnableTimeSync = 0
+$enableTimeSync = 0
 $Time = 'Pacific Standard Time'
 
 #############################
@@ -306,13 +306,15 @@ function Test-InternetConnection {
     BEGIN {
         Write-Verbose -Message "[BEGIN] Running an Internet connectivity check for $env:COMPUTERNAME"
         Write-Output "Checking for Internet connectivity..."
+        Start-Sleep -Seconds 3
     } #BEGIN
     PROCESS {
         # If there is no Internet connection, display an error and retry 5 five times.
         Write-Verbose -Message "[PROCESS] Checking if $env:COMPUTERNAME can ping to $TestWebsite"
-        while (-not((Test-Connection $TestWebsite -Quiet -Count 1) -eq $true)) {
+        while ((-not((Test-Connection $TestWebsite -Quiet -Count 1) -eq $true)) -and $Retries -lt 5) {
             Write-Warning "No Internet connection found. Retrying..."
-            Start-Sleep -Seconds 10
+            Start-Sleep -Seconds 5
+            $Retries++
         }
     }#PROCESS
     END {
@@ -327,7 +329,7 @@ function Test-InternetConnection {
             Write-Warning "Could not establish an Internet connection. Please check your network configuration and try again."
             if ((Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/") -eq $true) {
                 Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/"
-            } #if ((Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/") -eq $true)
+            } # end if
             Start-Sleep -Seconds 5
             exit
         } # End else
@@ -339,6 +341,7 @@ function Test-InternetConnection {
 #  INSTALL PSWINDOWSUPDATE  #
 #############################
 
+<#
 # Check for NuGet
 function Get-Nuget {
     [CmdletBinding()]
@@ -363,7 +366,7 @@ function Get-Nuget {
                 start-sleep -Seconds 2
                 Import-PackageProvider -name Nuget
             } #End Try
-            catch [System.Management.Automation.ActionPreferenceStopException] {
+            catch {
                 Write-Warning 'An error has occurred that could not be resolved.'
                 Write-Host $_.Exception.Message
                 Start-Sleep -Seconds 2
@@ -389,6 +392,66 @@ function Get-Nuget {
         } #End If
     } #END
 } #End function Get-Nuget
+#>
+function Get-NuGet {
+    [CmdletBinding()]
+    Param()
+
+    BEGIN {
+        Write-Verbose -Message "[BEGIN} Checking if NuGet package provider is installed on $env:COMPUTERNAME"
+        Write-Output "Checking for NuGet..."
+        start-sleep -Seconds 3
+        
+        if (Get-PackageProvider -Name NuGet) {
+            Write-Output "NuGet is already installed!"
+        } #end if
+    } #END BEGIN
+
+    PROCESS {
+        if (-not(Get-PackageProvider -Name NuGet -EA SilentlyContinue)) {
+            Write-Warning "Installing NuGet..."
+            try {
+                Write-Verbose -Message "[PROCESS] Installing NuGet on $env:COMPUTERNAME"
+                Install-PackageProvider -name NuGet -Force -ForceBootstrap -EA Stop
+            } #end try
+            catch {
+                Write-Warning 'An error has occurred that could not be resolved.'
+                Write-Host $_.Exception.Message -ForegroundColor Red
+                Start-Sleep -Seconds 2
+                # Restart the script if this cmdlet fails.
+                if ((Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat") -eq $true) {
+                    Write-Warning 'Restarting script'
+                    Start-Sleep -seconds 3
+                    Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
+                } #end else
+                exit
+            } #end catch
+        } #end if
+    } #END PROCESS
+
+    END {
+        if (Get-PackageProvider -Name NuGet) {
+            Write-Warning "Importing NuGet..."
+            Start-Sleep -Seconds 2
+            try {
+                Import-PackageProvider -Name NuGet
+                Write-Host "NuGet imported!" -ForegroundColor Green
+            } #end try
+            catch {
+                Write-Warning 'An error has occurred that could not be resolved.'
+                Write-Host $_.Exception.Message -ForegroundColor Red
+                Start-Sleep -Seconds 2
+                # Restart the script if this cmdlet fails.
+                if ((Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat") -eq $true) {
+                    Write-Warning 'Restarting script'
+                    Start-Sleep -seconds 3
+                    Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
+                } #end else
+                exit
+            } #end catch
+        } #end if
+    } #END
+} # end function Get-NuGet
 
 # Set PSGallery installation to either trusted or untrusted.
 function Set-PSGallery {
@@ -442,6 +505,7 @@ function Set-PSGallery {
     } #END PROCESS
 } #function Set-PSGallery
 
+<#
 function Get-PSWindowsUpdate {
     [CmdletBinding()]
     Param()
@@ -526,6 +590,69 @@ function Get-PSWindowsUpdate {
         } #end else
     } #END
 } #End function Get-PSWindowsUpdate
+#>
+
+function Get-PSWindowsUpdate {
+    [CmdletBinding()]
+    Param()
+
+    BEGIN {
+        Write-Output "Checking for PSWindowsUpdate"
+        if (Get-InstalledModule -Name PSWindowsUpdate) {
+            Write-Warning "PSWindowsUpdate installed!"
+        }
+    } #END BEGIN
+
+    PROCESS {
+        # Install PSWindowsUpdate if it is not installed.
+        if (-not(Get-InstalledModule -Name PSWindowsUpdate -EA SilentlyContinue)) {
+            Write-Warning "Installing PSWindowsUpdate"
+            try {
+                Install-Module -Name PSWindowsUpdate -Force
+            } #end try
+            catch {
+                Write-Host $_ -ForegroundColor Red
+                Write-Warning "PSWindowsUpdate has failed to install."
+                Start-Sleep -Seconds 3
+                if ((Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat") -eq $true) {
+                    Write-Warning "Restarting script..."
+                    Start-Sleep -Seconds 3
+                    Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
+                } #End if
+                exit
+            } #end catch
+        } #end if
+    } #END PROCESS
+
+    END {
+        if (Get-InstalledModule -Name PSWindowsUpdate) {
+            # Import PSWindowsUpdate.
+            if (-not(Get-Module -Name PSWindowsUpdate)) {
+                Write-Warning "Importing PSWindowsUpdate..."
+                Start-Sleep -Seconds 3
+                Import-Module -Name PSWindowsUpdate -Force
+                if (Get-Module -Name PSWindowsUpdate) {
+                    Write-Host "PSWindowsUpdate Imported!" -ForegroundColor Green
+                    Start-Sleep -Seconds 3
+                } #end if
+            } #end if
+            else {
+                Write-Output "PSWindowsUpdate is already imported!"
+                Start-Sleep -Seconds 3
+            }
+        } #end if
+        else {
+            Write-Warning "PSWindowsUpdate is not installed on $env:COMPUTERNAME. Restarting script..."
+            if ((Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat") -eq $true) {
+                Write-Warning "Restarting script..."
+                Start-Sleep -Seconds 3
+                Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
+            } #End if
+            exit
+        } #end else
+    } #END
+} #End function Get-PSWindowsUpdate
+
 
 #############################
 #   RUN MICROSOFT UPDATES   #
@@ -650,13 +777,18 @@ function Start-DeployMe {
     Param()
     
     BEGIN {
-        if ($SkipPreReqCheck -eq 0) {
+        if ($skipPreReqCheck -eq 0) {
             Write-Verbose "[BEGIN] Performing the prerequisite check on $ENV:COMPUTERNAME"
+
+            if ($enablePingTest -eq 1) {
             # Test for internet connectivity before running the script.
             Test-InternetConnection
+            } #end if
 
+            if ($enableTimeSync -eq 1) {
             # Verify the date and time. Change the timezone according to your location.
             Sync-Time -Timezone $Time
+            } #end if
 
             # Check if Key Deploy is opened and warn the user to close the application.
             Write-Output "Checking if Key Deploy is opened..."
