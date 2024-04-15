@@ -162,6 +162,82 @@ $skipOOBE = 0
 # All changes should be made in the Variables section.                               #
 ######################################################################################
 
+
+function Sync-DateTime {
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory)]
+        $Timezone
+    )
+
+    BEGIN {
+        Write-Verbose -Message "[BEGIN] Setting the timezone on $env:COMPUTERNAME"
+        if ((Get-TimeZone -ListAvailable).Id -contains $Timezone) {
+            try {
+                Set-TimeZone -Id $Timezone
+            } #end try
+            catch {
+                Write-Warning "Unable to set the timezone. An error occurred that could not be resolved."
+            } #end catch
+
+            if ((Get-TimeZone).Id -eq $Timezone) {
+                Write-Host "Timezone set to `"$Timezone`"" -ForegroundColor Green
+                $Sync = 1
+            } #end if
+        } #end if
+        else {
+            Write-Warning "Invalid Timezone!"
+        } #end else
+    } #end BEGIN
+
+    PROCESS {
+        if ($Sync -eq 1) {
+            # Start Windows Time if service status is anything other than "Started."
+            if ((-not(Get-Service -Name W32Time).Status -eq 'Running')) {
+                Write-Output "Starting service: Windows Time..."
+                Start-Sleep -Seconds 5
+                try {
+                    Start-Service -Name W32Time
+                    if ((Get-Service -Name W32Time).Status -eq 'Running') {
+                        Write-Warning "Service started!"
+                        Start-Sleep -Seconds 3
+                    } #end if
+                } #end try
+                catch {
+                    Write-Warning "Failed to start Windows Time service. An unknown error has occurred."
+                    Write-Host $_ -ForegroundColor Red
+                    $Sync = 0
+                    Start-Sleep -Seconds 5
+                } #end catch
+            } #end if
+
+            # Invoke the command from w32tm.exe to sync the date/time.
+            if (((Get-Service -Name W32Time).Status -eq 'Running')) {
+                Write-Output "Syncing the date and time..."
+                Start-Sleep -Seconds 3
+                try {
+                    Invoke-Command -ScriptBlock { w32tm.exe /resync }
+                } # end try
+                catch {
+                    Write-Host $_ -ForegroundColor Red
+                    Write-Warning "Failed to sync the date and time. An unknown error has occurred!"
+                    Start-Sleep -Seconds 5
+                    $Sync = 0
+                } #end catch
+            } #end if
+        } #end if
+    } #end PROCESS
+
+    END {
+        if (-not($Sync -eq 1)) {
+            Write-Warning "Operation aborted!"
+        } #end if
+        else {
+            Write-Output "The operation was successful."
+        } #end else
+    } #end END
+} #end function Sync-DateTime
+
 ########################
 #  PREREQUISITE CHECK  #
 ########################
@@ -627,11 +703,6 @@ function Start-DeployMe {
                 Sync-Time
             } #end if
         } #end if
-        else {
-            Write-Verbose "[BEGIN] Prerequisite check skipped due to variable set to 1 (skip)."
-            Write-Output "Skipping prerequisite check"
-            Start-Sleep -Seconds 2
-        } #end else
         Clear-Host
     } #end BEGIN
 
