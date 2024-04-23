@@ -14,10 +14,7 @@
 #Requires -RunAsAdministrator
 #Requires -Version 5.1
 
-
 # Check if the operating system is running on Windows 11. Terminate the script and delete its files if the OS is older than Windows 11.
-Write-Output "Checking if this PC is running Windows 11 or later..."
-Start-Sleep -Seconds 5
 if (([System.Environment]::OSVersion.Version).Build -lt 21999) {
     Write-Warning "This operating system is unsupported. This script will only run on Windows 11 or later."
     Start-Sleep -Seconds 5
@@ -28,14 +25,7 @@ if (([System.Environment]::OSVersion.Version).Build -lt 21999) {
         Remove-Item -Path "$env:HOMEDRIVE/DeployMe.ps1" -Force
     } #end if
     exit
-} #end if 
-else {
-    Write-Host "This PC is running Windows 11." -ForegroundColor Green
-    Write-OUtput "Starting script..."
-    Start-Sleep -seconds 3
-    Clear-Host
-}
-
+} #end if
 Write-Host " 
                    ***      ***************                      
                  ***    *********           **                   
@@ -162,81 +152,7 @@ $skipOOBE = 0
 # All changes should be made in the Variables section.                               #
 ######################################################################################
 
-
-function Sync-DateTime {
-    [CmdletBinding()]
-    Param(
-        [Parameter(Mandatory)]
-        $Timezone
-    )
-
-    BEGIN {
-        Write-Verbose -Message "[BEGIN] Setting the timezone on $env:COMPUTERNAME"
-        if ((Get-TimeZone -ListAvailable).Id -contains $Timezone) {
-            try {
-                Set-TimeZone -Id $Timezone
-            } #end try
-            catch {
-                Write-Warning "Unable to set the timezone. An error occurred that could not be resolved."
-            } #end catch
-
-            if ((Get-TimeZone).Id -eq $Timezone) {
-                Write-Host "Timezone set to `"$Timezone`"" -ForegroundColor Green
-                $Sync = 1
-            } #end if
-        } #end if
-        else {
-            Write-Warning "Invalid Timezone!"
-        } #end else
-    } #end BEGIN
-
-    PROCESS {
-        if ($Sync -eq 1) {
-            # Start Windows Time if service status is anything other than "Started."
-            if ((-not(Get-Service -Name W32Time).Status -eq 'Running')) {
-                Write-Output "Starting service: Windows Time..."
-                Start-Sleep -Seconds 5
-                try {
-                    Start-Service -Name W32Time
-                    if ((Get-Service -Name W32Time).Status -eq 'Running') {
-                        Write-Warning "Service started!"
-                        Start-Sleep -Seconds 3
-                    } #end if
-                } #end try
-                catch {
-                    Write-Warning "Failed to start Windows Time service. An unknown error has occurred."
-                    Write-Host $_ -ForegroundColor Red
-                    $Sync = 0
-                    Start-Sleep -Seconds 5
-                } #end catch
-            } #end if
-
-            # Invoke the command from w32tm.exe to sync the date/time.
-            if (((Get-Service -Name W32Time).Status -eq 'Running')) {
-                Write-Output "Syncing the date and time..."
-                Start-Sleep -Seconds 3
-                try {
-                    Invoke-Command -ScriptBlock { w32tm.exe /resync }
-                } # end try
-                catch {
-                    Write-Host $_ -ForegroundColor Red
-                    Write-Warning "Failed to sync the date and time. An unknown error has occurred!"
-                    Start-Sleep -Seconds 5
-                    $Sync = 0
-                } #end catch
-            } #end if
-        } #end if
-    } #end PROCESS
-
-    END {
-        if (-not($Sync -eq 1)) {
-            Write-Warning "Operation aborted!"
-        } #end if
-        else {
-            Write-Output "The operation was successful."
-        } #end else
-    } #end END
-} #end function Sync-DateTime
+$switchOFF = 0
 
 ########################
 #  PREREQUISITE CHECK  #
@@ -279,101 +195,82 @@ function Test-InternetConnection {
     } #END 
 }#function Test-InternetConnection
 
-function Sync-Time {
+function Sync-DateTime {
     [CmdletBinding()]
     Param(
         [Parameter(Mandatory)]
-        [String]$Timezone
+        $TimeZone
     )
 
     BEGIN {
-        # Grab local computer name.
-        $ComputerName = $env:COMPUTERNAME
+        Write-Verbose -Message "[BEGIN] Setting the timezone on $env:COMPUTERNAME"
+        if ((Get-TimeZone -ListAvailable).Id -contains $TimeZone) {
+            try {
+                Set-TimeZone -Id $TimeZone
+                if ((Get-TimeZone).Id -eq $TimeZone) {
+                    Write-Host "Timezone set to `"$TimeZone`"" -ForegroundColor Green
+                    $Sync = 1
+                } #end if
+            } #end try
+            catch {
+                Write-Warning "Unable to set the timezone. An error occurred that could not be resolved."
+            } #end catch
+        } #end if
+        else {
+            Write-Warning "Invalid Timezone!"
+        } #end else
+    } #end BEGIN
 
-        Write-Verbose "Retrieving the timezone and preferred timezone."
-        Write-Output 'Checking the current timezone...'
-        # Checks the current timezone of the computer
-        $CurrentTimeZone = (Get-TimeZone).Id
-
-        # The preferred timezone.
-        $PreferredTimeZone = (Get-TimeZone -ID $Timezone).Id
-
-    } #BEGIN
     PROCESS {
-        # Set the preferred Timezone if current timezone is set incorrectly.
-        Write-Verbose "[BEGIN] Verifying the timezone for $ComputerName"
-        if ($CurrentTimeZone -eq $PreferredTimeZone) {
-            Write-Output "Timezone is already set to $PreferredTimeZone`n"
-            Get-TimeZone
-        }
-        else {
-            Set-TimeZone -ID $PreferredTimeZone
-            Write-Output "Timezone changed to $PreferredTimeZone`n"
-            Get-TimeZone
-        } #if/else
-
-        # Name of the Windows Time service
-        $WindowsTime = 'W32Time'
-
-        Write-Output "Checking if $WindowsTime is running..."
-        start-sleep 2
-        if ((Get-Service -Name $WindowsTime).Status -eq 'Running') {
-            Write-Output "$WindowsTime is already running. Syncing local time..."
-            Get-Service -Name W32Time
-            try {
-                Write-Verbose "[PROCESS] Syncing the local time using 'w32tm /resync' on $ComputerName"
-                Write-Output "Syncing local time on $ComputerName"
-                start-sleep -Seconds 2
-                Invoke-Command -ScriptBlock { w32tm.exe /resync } -EA Stop
-                Get-Date
-            }
-            catch {
-                Write-Warning "An error has occurred that could not be resolved."
-                Write-Host $_ -ForegroundColor Red
-
-                # Restart the script if an error occurs
-                Write-Output 'Restarting script...'
+        if ($Sync -eq 1) {
+            # Start Windows Time if service status is anything other than "Started."
+            if ((-not(Get-Service -Name W32Time).Status -eq 'Running')) {
+                Write-Output "Starting service: Windows Time..."
                 Start-Sleep -Seconds 5
-                Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
-                exit
-            } #try/catch
-        }
-        else {
-            Write-Output "Starting $WindowsTime..."
-            Start-Sleep -seconds 2
-            try {
-                Write-Verbose "[PROCESS] Starting $WindowsTime on $ComputerName"
-                Start-Service -Name $WindowsTime -EA Stop
-                # If "W32Time" started successfully, run the "w32tm /resync" command.
-                if ((Get-Service -Name $WindowsTime).Status -eq 'Running') {
-                    Write-Verbose "[PROCESS] Syncing the local time using 'w32tm /resync' on $ComputerName"
-                    Write-Output "Syncing local time on $ComputerName"
-                    start-sleep -Seconds 2
-                    Invoke-Command -ScriptBlock { w32tm.exe /resync } -EA Stop
-                } #if (Get-Service -Name $WindowsTime).Status -eq 'Started')
-            }
-            catch {
-                Write-Warning "An error has occurred that could not be resolved."
-                Write-Host $_ -ForegroundColor Red
+                try {
+                    Start-Service -Name W32Time
+                    if ((Get-Service -Name W32Time).Status -eq 'Running') {
+                        Write-Warning "Service started!"
+                        Start-Sleep -Seconds 3
+                    } #end if
+                } #end try
+                catch {
+                    Write-Warning "Failed to start Windows Time service. An unknown error has occurred."
+                    Write-Host $_ -ForegroundColor Red
+                    $Sync = 0
+                    Start-Sleep -Seconds 5
+                } #end catch
+            } #end if
 
-                # Restart the script if an error occurs
-                Write-Output 'Restarting script...'
-                Start-Sleep -Seconds 5
-                Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
-                exit
-            } #try/catch
-        } #if/else ((Get-Service -Name $WindowsTime).Status -eq 'Running')
-    } #PROCESS
+            # Invoke the command from w32tm.exe to sync the date/time.
+            if (((Get-Service -Name W32Time).Status -eq 'Running')) {
+                Write-Output "Syncing the date and time..."
+                Start-Sleep -Seconds 3
+                try {
+                    Invoke-Command -ScriptBlock { w32tm.exe /resync }
+                } # end try
+                catch {
+                    Write-Host $_ -ForegroundColor Red
+                    Write-Warning "Failed to sync the date and time. An unknown error has occurred!"
+                    $Sync = 0
+                    Start-Sleep -Seconds 5
+                } #end catch
+            } #end if
+        } #end if
+    } #end PROCESS
+
     END {
-        Write-Verbose "[END] Verifying that the timezone and today's date is synced."
-        $CurrentTimeZone = (Get-TimeZone).Id
-        if ($CurrentTimeZone -eq $PreferredTimeZone) {
-            Write-Host 'The operation was successful.' -ForegroundColor Green
-            start-sleep 2
-        } #if ($CurrentTimeZone -eq $PreferredTimeZone)
-    } #END
-} #function Sync-Time
-
+        if (-not($Sync -eq 1)) {
+            Write-Warning "Operation aborted!"
+        } #end if
+        else {
+            Write-Output "The operation was successful."
+            if (Test-Path -Path $env:HOMEDRIVE\DeployMe.ps1) {
+                (Get-Content -Path $env:HOMEDrive\DeployMe.ps1 -Raw).Replace("enableTimeSync = 1", "enableTimeSync = $switchOFF") | Set-Content -Path $env:HOMEDRIVE\DeployMe.ps1
+            } #end if
+        } #end else
+    } #end END
+} #end function Sync-DateTime
 
 #############################
 #  INSTALL PSWINDOWSUPDATE  #
@@ -693,14 +590,14 @@ function Start-DeployMe {
         if ($skipPreReqCheck -eq 0) {
             Write-Verbose "[BEGIN] Performing prerequisite check(s) on $ENV:COMPUTERNAME"
 
-            if ($enablePingTest) {
+            if ($enablePingTest -eq 1) {
                 # Test for internet connectivity
                 Test-InternetConnection
             } #end if
 
-            if ($enableTimeSync) {
+            if ($enableTimeSync -eq 1) {
                 # Sync the date/time
-                Sync-Time
+                Sync-DateTime -Timezone 'Pacific Standard Time'
             } #end if
         } #end if
         Clear-Host
