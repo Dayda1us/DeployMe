@@ -57,8 +57,8 @@ Write-Host "
                                   *********                      
                            #************                         `n" -ForegroundColor Green                
 Write-Output "#######################################################################"
-Write-Output "#                            DEPLOY ME v4.0                           #"
-Write-Output "#                                                                     #"
+Write-Output "#                            DEPLOY ME                                #"
+Write-Output "#                           VERSION 4.0                               #"
 Write-Output "#                      DEVELOPED BY CHARLES THAI                      #"
 Write-Output "#######################################################################`n"
 Start-Sleep -seconds 3
@@ -86,7 +86,7 @@ $enablePingTest = 1
 $TestWebsite = '3rtechnology.com'
 
 # Enable this script to set the date/time. Set the timezone of the location and automatically sync the date/time. (Default is 1 for enabled).
-$enableTimeSync = 0
+$enableTimeSync = 1
 $Timezone = 'Pacific Standard Time'
 
 #############################
@@ -265,6 +265,7 @@ function Sync-DateTime {
         } #end if
         else {
             Write-Output "The operation was successful."
+            # Disable this check once time/date is in sync.
             if (Test-Path -Path $env:HOMEDRIVE\DeployMe.ps1) {
                 (Get-Content -Path $env:HOMEDrive\DeployMe.ps1 -Raw).Replace("enableTimeSync = 1", "enableTimeSync = $switchOFF") | Set-Content -Path $env:HOMEDRIVE\DeployMe.ps1
             } #end if
@@ -596,7 +597,7 @@ function Start-DeployMe {
             } #end if
 
             if ($enableTimeSync -eq 1) {
-                # Sync the date/time
+                # Sync the date/time. This variable will be set to 0 (false) once the correct date/time has been set to prevent looping.
                 Sync-DateTime -Timezone 'Pacific Standard Time'
             } #end if
         } #end if
@@ -604,12 +605,12 @@ function Start-DeployMe {
     } #end BEGIN
 
     PROCESS {
-        Write-Verbose -Message "[PROCESS] Checking if this script was previously ran on $ENV:COMPUTERNAME"
+        Write-Verbose -Message "[PROCESS] Check if the script was previously ran on $ENV:COMPUTERNAME"
         Write-Output "Initializing script...`n"
         Start-Sleep -Seconds 5
 
         if (Get-InstalledModule -Name "PSWindowsUpdate" -EA SilentlyContinue) {
-            Write-Output "DeployMe has detected that PSWindowsUpdate is installed on $ENV:COMPUTERNAME. Importing script..."
+            Write-Output "DeployMe has detected that PSWindowsUpdate is installed on $ENV:COMPUTERNAME."
             try {
                 Import-Module "PSWindowsUpdate" -Force
                 if (Get-Module -name "PSWindowsUpdate") {
@@ -641,6 +642,7 @@ function Start-DeployMe {
             else {
                 Write-Warning "Your PC has updates to install."
                 Start-Sleep -Seconds 5
+                Clear-Host
                 Get-Update
                 Deploy-Computer
             } #end else
@@ -657,6 +659,11 @@ function Start-DeployMe {
                 } #end if
                 else {
                     Write-Warning "Could not find PSWindowsUpdate in the module. This module is required for this script to work!"
+                    if (Test-Path -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat" -eq $true) {
+                        Write-Warning 'Restarting script...'
+                        Start-Sleep -Seconds 3
+                        Invoke-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat"
+                    } #end if
                 } #end if
             } #end if
         } #end elseif
@@ -673,14 +680,14 @@ function Start-DeployMe {
     END {
         if (($skipAccountRemoval -eq 0) -and (Get-LocalUser) -match $Username) {
             Write-Verbose -Message "[END] Warn the user that this reference account exists and abort Sysprep."
-            Write-Warning "This reference account wasn't removed. Please remove the account manually then sysprep the machine."
+            Write-Warning "The local administrator account wasn't removed. Please remove the account manually then sysprep the machine."
             $skipOOBE = 1
         } #end if
 
         # Sysprep the PC. Give it 20 seconds for the success tag to be created in the sysprep folder.
         if ($skipOOBE -eq 0) {
             Write-Verbose -Message "[END] Sysprep the PC using Out of Box Experience (OOBE) and quit the application."
-            Write-Output "Preparing Sysprep using Out of Box Experience (OOBE)"
+            Write-Output "Sealing the PC using Sysprep..."
             start-sleep -Seconds 5
             if ((Get-Process).ProcessName -contains 'sysprep') {
                 Stop-Process -Name sysprep
@@ -705,12 +712,12 @@ Start-DeployMe
 
 # Check the Sysprep folder and verify if the success tag exists. If the tag exists, Uninstall PSWindowsUpdate, delete the script, and shut down the PC.
 if ((Test-Path -Path $env:WINDIR\System32\Sysprep\Sysprep_succeeded.tag) -eq $true) {
-    Write-Output "Script complete! Preparing to shutdown PC in 30 seconds."
+    Write-Output "Script complete! Restarting PC in 30 seconds."
     Invoke-Expression 'cmd /c start powershell -Command {Write-Output "Uninstalling PSWindowsUpdate" ; Uninstall-Module -Name PSWindowsUpdate -Force}'
     Remove-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat" -Force
     Remove-Item -Path $MyInvocation.MyCommand.Source -Force
     Start-Sleep -Seconds 30
-    Stop-Computer
+    Restart-Computer -Force
 } #end if
 else {
     Write-Output "Script complete! Preparing to uninstall PSWindowsUpdate. Please sysprep the PC when you are finished."
