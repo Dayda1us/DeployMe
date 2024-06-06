@@ -1,7 +1,7 @@
 <#
 
     .DESCRIPTION
-        The Install-DeployMe cmdlet installs the script and batch file on the computer.
+        The Install-DeployMe cmdlet installs the script and startup batch file on the computer.
     
     .NOTES
         For the script to work, the three required files are needed for this script to run properly:
@@ -29,7 +29,7 @@ if ($OSBuildNumber -ge 22000) {
         Write-Warning "Copying $($deployScript[1]) and the startup batch file..."
         Start-Sleep -Seconds 2
         try {
-            Copy-Item -Path "$($currentDrive)\$($deployScript[1])" -Destination $env:HOMEDRIVE
+            Copy-Item -Path "$($currentDrive)\$($deployScript[1])" -Destination "$($env:HOMEDRIVE)\"
             Copy-Item -Path "$($currentDrive)\$($deployScript[2])" -Destination "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Startup\"
 
             # Start the batch file to start the script.
@@ -59,7 +59,7 @@ elseif (-not($OSBuildNumber -ge 22000)) {
         Write-Warning "Copying $($deployScript[0]) and the startup batch file..."
         Start-Sleep -Seconds 2
         try {
-            Copy-Item -Path "$($currentDrive)\$($deployScript[0])" -Destination $env:HOMEDRIVE
+            Copy-Item -Path "$($currentDrive)\$($deployScript[0])" -Destination "$($env:HOMEDRIVE)\"
             Copy-Item -Path "$($currentDrive)\$($deployScript[2])" -Destination "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Startup\"
 
             # Start the batch file to start the script.
