@@ -134,8 +134,8 @@ $NoPreview = 'Preview'
 #############################
 
 <#
-If you previously created a local administrator account, you may choose the option to remove the account. (1 = Skip, 0 = Remove account)
-You must specify the local administrator account name if you enable this option.
+Enable this option if a local administrator account was previously created. (1 = Skip, 0 = Remove account)
+It is important to specify the account name correctly, otherwise it will fail to remove the account.
 #>
 $skipAccountRemoval = 0 
 $Username = 'Refurb'
@@ -526,7 +526,9 @@ function Remove-ReferenceAccount {
     }#END BEGIN
     PROCESS {
         if (-not((Get-LocalUser).name -eq $Account)) {
-            Write-Warning "$Account account doesnt exist!`n"
+            Write-Warning "$Account doesn't exist!`n"
+            Start-Process "ms-settings:otherusers"
+            Start-Sleep -Seconds 2
         } #End If
         else {
             try {
@@ -678,9 +680,12 @@ function Start-DeployMe {
     } #end PROCESS
 
     END {
+
+        # Warn the user that the local administrator account still exists and prevent the system being Sysprep
         if (($skipAccountRemoval -eq 0) -and (Get-LocalUser) -match $Username) {
             Write-Verbose -Message "[END] Warn the user that this reference account exists and abort Sysprep."
             Write-Warning "The local administrator account wasn't removed. Please remove the account manually then sysprep the machine."
+            Start-Process "ms-settings:otherusers"
             $skipOOBE = 1
         } #end if
 
@@ -717,7 +722,7 @@ if ((Test-Path -Path $env:WINDIR\System32\Sysprep\Sysprep_succeeded.tag) -eq $tr
     Remove-Item -Path "$env:ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/AutoDeployment.bat" -Force
     Remove-Item -Path $MyInvocation.MyCommand.Source -Force
     Start-Sleep -Seconds 30
-    Restart-Computer -Force
+    Restart-Computer -Force # Restart the PC.
 } #end if
 else {
     Write-Output "Script complete! Preparing to uninstall PSWindowsUpdate. Please sysprep the PC when you are finished."

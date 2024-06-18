@@ -1,7 +1,7 @@
 <#
 
     .DESCRIPTION
-        The Install-DeployMe cmdlet installs the script and startup batch file on the computer.
+        The Install-DeployMe cmdlet installs the script and batch file on the computer.
     
     .NOTES
         For the script to work, the three required files are needed for this script to run properly:
@@ -35,6 +35,7 @@ if ($OSBuildNumber -ge 22000) {
             # Start the batch file to start the script.
             if (Test-Path -Path "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Startup\$($deployScript[2])") {
                 Write-Output "Launching $deployScript[1]"
+                Start-Sleep -Seconds 2
                 Invoke-Item -Path "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Startup\$($deployScript[2])"
             } #end if
         } #end try
@@ -83,9 +84,9 @@ elseif (-not($OSBuildNumber -ge 22000)) {
     } #end else
 } #end elseif
 
-# Warn the user that this script only runs on Microsoft Windows 10 or later
+# Warn the user that this script only runs on Microsoft Windows.
 else {
-    Write-Warning "This script only works on Windows 10/11."
+    Write-Warning "This script only works on Microsoft Windows."
     Start-Sleep -Seconds 2
     exit
 } #end else
