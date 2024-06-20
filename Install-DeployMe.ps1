@@ -18,6 +18,8 @@
 
 #Retrieve the build number of the operating system.
 $OSBuildNumber = [System.Environment]::OSVersion.Version.Build
+
+#Keeping files in a array.
 $deployScript = @("AutoDeploy.ps1", "DeployMe.ps1","AutoDeployment.bat")
 
 #Grab the drive where the script is running from.
