@@ -8,4 +8,5 @@ A PowerShell script that automates deployments for refurbished Windows PCs by fe
 - Included editable variables for customization
 - Automated date/time synchronization system
 - Ability to check for Internet connectivity prior to script execution
+- Applies and activate new Windows product keys on refurbished PCs
 - Seal PCs using Sysprep (OOBE)
